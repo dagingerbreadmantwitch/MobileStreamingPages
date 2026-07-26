@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mobile Streaming Portal - DGB Production Studio</title>
+  <meta name="description" content="Next-generation mobile streaming web workspace with real-time multi-camera controls, low-latency video feeds, and live telemetry.">
+  <link rel="stylesheet" href="./styles/main.css">
+</head>
+<body>
+
+  <!-- Navigation Bar -->
+  <header class="navbar">
+    <div class="container nav-container">
+      <a href="./index.html" class="logo">
+        <div class="logo-badge">🎥</div>
+        <span>MobileStream<span class="gradient-text">Studio</span></span>
+      </a>
+
+      <nav>
+        <ul class="nav-menu">
+          <li><a href="./index.html" class="nav-link active" id="navHome">Home</a></li>
+          <li><a href="./pages/browser-sources.html" class="nav-link" id="navBrowser">Browser Sources</a></li>
+          <li><a href="./pages/remote.html" class="nav-link" id="navRemote">📱 Touch Remote</a></li>
+          <li><a href="./pages/media-remote.html" class="nav-link" id="navMediaRemote">🎬 Media Remote</a></li>
+          <li><a href="./pages/streams.html" class="nav-link" id="navStreams">Live Channels</a></li>
+          <li><a href="./pages/studio.html" class="nav-link" id="navStudio">Control Room</a></li>
+          <li><a href="./pages/gallery.html" class="nav-link" id="navGallery">Media Vault</a></li>
+        </ul>
+      </nav>
+
+      <div class="nav-actions">
+        <div class="live-badge">
+          <span class="pulse-dot"></span>
+          <span>LIVE NOW</span>
+        </div>
+        <button class="theme-toggle" id="themeToggleBtn" aria-label="Toggle theme">☀️</button>
+        <a href="./pages/media-remote.html" class="btn btn-live">Media Remote</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <main>
+    <section class="hero-section">
+      <div class="container">
+        <div class="hero-tag">⚡ Ultra-Low Latency Mobile Production</div>
+        <h1 class="hero-title">
+          Professional <span class="gradient-live-text">Mobile Broadcasts</span><br>
+          Direct from Your Chrome Browser
+        </h1>
+        <p class="hero-description">
+          Stream multi-cam feeds, manage live telemetry, swap camera angles on the fly, and overlay real-time graphics with zero latency.
+        </p>
+
+        <div class="hero-actions">
+          <a href="./pages/media-remote.html" class="btn btn-live">Launch Media Remote</a>
+          <a href="./pages/overlay-source.html" class="btn btn-glass">Open Stream Overlay</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Viewport Showcase -->
+    <section class="container" style="margin-bottom: 4rem;">
+      <div class="stream-viewport">
+        <div class="stream-canvas-mock">
+          <div class="camera-lens-graphic">
+            <div class="camera-lens-inner">📡</div>
+          </div>
+        </div>
+
+        <div class="stream-overlay">
+          <div class="stream-top-bar">
+            <div class="live-badge">
+              <span class="pulse-dot"></span>
+              <span id="activeFeedTitle">MAIN BROADCAST FEED</span>
+            </div>
+
+            <div class="telemetry-bar">
+              <span class="live-badge" style="background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.4); color: #34d399;" id="resolutionBadge">4K 60FPS</span>
+              <span class="live-badge" style="background: rgba(6, 182, 212, 0.15); border-color: rgba(6, 182, 212, 0.4); color: #22d3ee;" id="telemetryBitrate">8.4 Mbps</span>
+            </div>
+          </div>
+
+          <div class="stream-bottom-bar">
+            <div style="display: flex; gap: 0.5rem;">
+              <button class="btn btn-glass cam-select-btn active btn-primary" data-cam="Front Lens 4K" data-res="4K 60FPS">Cam 1: Front 4K</button>
+              <button class="btn btn-glass cam-select-btn" data-cam="Ultra-Wide 120°" data-res="1080p 60FPS">Cam 2: Ultra Wide</button>
+              <button class="btn btn-glass cam-select-btn" data-cam="Overhead Rig" data-res="4K 30FPS">Cam 3: Overhead</button>
+            </div>
+
+            <div class="audio-meter" title="Live Audio Levels">
+              <div class="meter-bar"></div>
+              <div class="meter-bar"></div>
+              <div class="meter-bar"></div>
+              <div class="meter-bar"></div>
+              <div class="meter-bar"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Key Features Grid -->
+    <section class="container" style="margin-bottom: 5rem;">
+      <h2 style="text-align: center; margin-bottom: 1rem;">Built for High-Impact Mobile Streaming</h2>
+      <p style="text-align: center; color: var(--text-muted); margin-bottom: 3rem;">Complete web-based suite designed for content creators, mobile journalists, and live broadcast teams.</p>
+
+      <div class="grid-3">
+        <div class="glass-card">
+          <div class="feature-icon">🎬</div>
+          <h3>Rive & WebM Remote Triggers</h3>
+          <p style="color: var(--text-muted);">Trigger Rive animations (.riv) and transparent WebM video overlays remotely from any phone via WebSockets and WebRTC Data Channels.</p>
+        </div>
+
+        <div class="glass-card">
+          <div class="feature-icon">📊</div>
+          <h3>Live Telemetry Monitor</h3>
+          <p style="color: var(--text-muted);">Monitor live bitrate, target frame rates, dropped frames, audio volume meters, and viewer metrics.</p>
+        </div>
+
+        <div class="glass-card">
+          <div class="feature-icon">✨</div>
+          <h3>Transparent AR Overlay</h3>
+          <p style="color: var(--text-muted);">Integrate real-time graphics, animated lower-thirds, face tracking filters, and text overlays directly on stream with 100% transparency.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div>
+        <strong>MobileStream Studio</strong> &copy; 2026 DGB Productions. All rights reserved.
+      </div>
+      <div>
+        Designed for Google Chrome on macOS
+      </div>
+    </div>
+  </footer>
+
+  <script src="./scripts/app.js"></script>
+</body>
+</html>

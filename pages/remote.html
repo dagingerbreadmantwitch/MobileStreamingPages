@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Mobile Remote Control - MobileStream Studio</title>
+  <meta name="description" content="Touch-optimized mobile stream remote control for triggering live overlays, lower third graphics, alerts, and green screen modes.">
+  <link rel="stylesheet" href="../styles/main.css">
+  <style>
+    body {
+      padding-bottom: 3rem;
+      touch-action: manipulation;
+    }
+
+    .remote-header {
+      padding: 1.2rem 1rem;
+      background: rgba(8, 12, 20, 0.95);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border-glass);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .room-badge-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-glass-bright);
+      border-radius: var(--radius-lg);
+      padding: 1.2rem;
+      margin-bottom: 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .remote-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .touch-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+      padding: 1.4rem 1rem;
+      border-radius: var(--radius-lg);
+      background: var(--bg-card);
+      border: 1px solid var(--border-glass);
+      color: var(--text-main);
+      font-weight: 700;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: var(--transition-bounce);
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .touch-btn:active {
+      transform: scale(0.94);
+      background: var(--border-glass-bright);
+    }
+
+    .touch-btn .icon {
+      font-size: 2rem;
+    }
+
+    .touch-btn.active {
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 20px var(--accent-cyan-glow);
+      background: rgba(6, 182, 212, 0.15);
+    }
+
+    .touch-btn-alert {
+      grid-column: span 2;
+      background: var(--gradient-live);
+      color: #fff;
+      font-size: 1.1rem;
+      box-shadow: var(--shadow-live);
+    }
+
+    .touch-btn-alert:active {
+      filter: brightness(1.2);
+    }
+
+    .status-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.3rem 0.8rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-family: var(--font-mono);
+      font-weight: 700;
+    }
+
+    .status-online {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: #34d399;
+    }
+
+    .status-syncing {
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid rgba(245, 158, 11, 0.4);
+      color: #fbbf24;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Controller Header -->
+  <header class="remote-header">
+    <div class="container" style="display: flex; justify-content: space-between; align-items: center; padding: 0;">
+      <div style="display: flex; align-items: center; gap: 0.6rem;">
+        <span style="font-size: 1.4rem;">📱</span>
+        <div>
+          <h2 style="font-size: 1.1rem; margin: 0;">Mobile Stream Controller</h2>
+          <div style="font-size: 0.75rem; color: var(--text-muted);">Real-Time OBS & Web Remote</div>
+        </div>
+      </div>
+
+      <div class="status-indicator status-online" id="connectionStatus">
+        <span class="pulse-dot" style="background: #34d399; box-shadow: 0 0 8px #34d399;"></span>
+        <span id="statusText">LOCAL SYNC</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="container" style="margin-top: 1.5rem;">
+    <!-- Room Code Pairing Card -->
+    <div class="room-badge-card">
+      <div>
+        <div style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono); font-weight: 600;">STREAM ROOM ID</div>
+        <div style="font-size: 1.6rem; font-weight: 900; font-family: var(--font-mono); color: var(--accent-cyan);" id="displayRoomId">----</div>
+      </div>
+
+      <div style="display: flex; gap: 0.5rem;">
+        <input type="text" id="inputRoomId" placeholder="ROOM ID" style="width: 90px; text-transform: uppercase; font-family: var(--font-mono); font-size: 0.9rem; padding: 0.4rem 0.6rem; border-radius: 8px; border: 1px solid var(--border-glass); background: rgba(0,0,0,0.5); color: #fff;">
+        <button class="btn btn-primary" id="connectRoomBtn" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">Pair Phone</button>
+      </div>
+    </div>
+
+    <!-- Quick Action Touch Grid -->
+    <div class="remote-grid">
+      
+      <!-- Big Alert Trigger -->
+      <button class="touch-btn touch-btn-alert" id="btnTriggerAlert">
+        <span class="icon">🔔</span>
+        <span>TRIGGER LIVE ALERT</span>
+      </button>
+
+      <!-- Lower Third Banner Toggle -->
+      <button class="touch-btn" id="btnLowerThird">
+        <span class="icon">🏷️</span>
+        <span>Lower Third Banner</span>
+      </button>
+
+      <!-- Face Mesh / Subject Grid -->
+      <button class="touch-btn" id="btnFaceGrid">
+        <span class="icon">🎯</span>
+        <span>Face Framing Grid</span>
+      </button>
+
+      <!-- Telemetry Stats HUD -->
+      <button class="touch-btn" id="btnTelemetry">
+        <span class="icon">📊</span>
+        <span>Telemetry Stats HUD</span>
+      </button>
+
+      <!-- Forehead Meme / Graphic -->
+      <button class="touch-btn" id="btnForeheadMeme">
+        <span class="icon">🎭</span>
+        <span>Forehead Meme AR</span>
+      </button>
+
+      <!-- Green Screen Chroma Key -->
+      <button class="touch-btn" id="btnGreenScreen">
+        <span class="icon">🟢</span>
+        <span>Green Screen Mode</span>
+      </button>
+
+      <!-- Clear All Overlays -->
+      <button class="touch-btn" id="btnClearAll" style="border-color: rgba(239, 68, 68, 0.4); color: #f87171;">
+        <span class="icon">🧹</span>
+        <span>Hide All Overlays</span>
+      </button>
+    </div>
+
+    <!-- Quick Custom Lower Third Form -->
+    <div class="glass-card" style="margin-bottom: 2rem;">
+      <h3 style="font-size: 1rem; margin-bottom: 0.8rem;">Custom Lower Third Graphic</h3>
+      <div style="display: flex; flex-direction: column; gap: 0.8rem;">
+        <input type="text" id="customTitle" placeholder="Host / Streamer Name (e.g. @AlexStreamer)" style="width: 100%; padding: 0.6rem 0.9rem; border-radius: 8px; border: 1px solid var(--border-glass); background: rgba(0,0,0,0.4); color: #fff;">
+        <input type="text" id="customSubtitle" placeholder="Subtitle / Topic (e.g. 4K Mobile IRL Stream)" style="width: 100%; padding: 0.6rem 0.9rem; border-radius: 8px; border: 1px solid var(--border-glass); background: rgba(0,0,0,0.4); color: #fff;">
+        <button class="btn btn-glass" id="btnUpdateLowerThird" style="width: 100%;">Push Custom Lower Third</button>
+      </div>
+    </div>
+  </main>
+
+  <script src="../scripts/remote-control.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const roomDisplay = document.getElementById('displayRoomId');
+      const inputRoom = document.getElementById('inputRoomId');
+      const connectBtn = document.getElementById('connectRoomBtn');
+      const statusText = document.getElementById('statusText');
+      const statusBox = document.getElementById('connectionStatus');
+
+      let currentRoom = window.remoteEngine.roomId;
+      roomDisplay.textContent = currentRoom;
+
+      // Handle pairing via PeerJS
+      connectBtn.addEventListener('click', () => {
+        const targetRoom = inputRoom.value.trim().toUpperCase() || currentRoom;
+        statusText.textContent = 'CONNECTING...';
+        statusBox.className = 'status-indicator status-syncing';
+
+        window.remoteEngine.initPeerSender(targetRoom, () => {
+          statusText.textContent = 'REMOTE PAIRED';
+          statusBox.className = 'status-indicator status-online';
+          roomDisplay.textContent = targetRoom;
+        }, (err) => {
+          statusText.textContent = 'LOCAL SYNC ONLY';
+          statusBox.className = 'status-indicator status-online';
+        });
+      });
+
+      // Quick Action Trigger Helpers
+      function setupToggle(btnId, actionName) {
+        const btn = document.getElementById(btnId);
+        if (!btn) return;
+        btn.addEventListener('click', () => {
+          const isActive = btn.classList.toggle('active');
+          window.remoteEngine.send(actionName, { active: isActive });
+        });
+      }
+
+      setupToggle('btnLowerThird', 'toggle_lower_third');
+      setupToggle('btnFaceGrid', 'toggle_face_grid');
+      setupToggle('btnTelemetry', 'toggle_telemetry');
+      setupToggle('btnForeheadMeme', 'toggle_meme');
+      setupToggle('btnGreenScreen', 'toggle_green_screen');
+
+      // Trigger Alert
+      document.getElementById('btnTriggerAlert')?.addEventListener('click', () => {
+        window.remoteEngine.send('trigger_alert', {
+          title: 'NEW SUBSCRIBER!',
+          subtitle: 'MobileStreamer_Pro joined the channel!'
+        });
+      });
+
+      // Hide All Overlays
+      document.getElementById('btnClearAll')?.addEventListener('click', () => {
+        document.querySelectorAll('.touch-btn').forEach(b => b.classList.remove('active'));
+        window.remoteEngine.send('clear_all');
+      });
+
+      // Custom Lower Third Submit
+      document.getElementById('btnUpdateLowerThird')?.addEventListener('click', () => {
+        const title = document.getElementById('customTitle').value || 'MobileStream Studio';
+        const subtitle = document.getElementById('customSubtitle').value || 'Live Stream Broadcast';
+        window.remoteEngine.send('show_lower_third', { title, subtitle });
+        document.getElementById('btnLowerThird')?.classList.add('active');
+      });
+    });
+  </script>
+</body>
+</html>

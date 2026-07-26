@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Media Vault & Highlights - MobileStream Studio</title>
+  <meta name="description" content="Browse recorded stream clips, high-definition video archives, and recorded broadcast highlights.">
+  <link rel="stylesheet" href="../styles/main.css">
+</head>
+<body>
+
+  <!-- Navbar -->
+  <header class="navbar">
+    <div class="container nav-container">
+      <a href="../index.html" class="logo">
+        <div class="logo-badge">📼</div>
+        <span>Media<span class="gradient-text">Vault</span></span>
+      </a>
+
+      <nav>
+        <ul class="nav-menu">
+          <li><a href="../index.html" class="nav-link" id="navHome">Home</a></li>
+          <li><a href="./browser-sources.html" class="nav-link" id="navBrowser">Browser Sources</a></li>
+          <li><a href="./remote.html" class="nav-link" id="navRemote">📱 Touch Remote</a></li>
+          <li><a href="./streams.html" class="nav-link" id="navStreams">Live Channels</a></li>
+          <li><a href="./studio.html" class="nav-link" id="navStudio">Control Room</a></li>
+          <li><a href="./gallery.html" class="nav-link active" id="navGallery">Media Vault</a></li>
+        </ul>
+      </nav>
+
+      <div class="nav-actions">
+        <button class="theme-toggle" id="themeToggleBtn" aria-label="Toggle theme">☀️</button>
+        <a href="./remote.html" class="btn btn-live">Touch Remote</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Gallery Main Body -->
+  <main class="container" style="margin-top: 3rem; margin-bottom: 5rem;">
+    <div style="margin-bottom: 2.5rem;">
+      <h1>Recorded Broadcast <span class="gradient-text">Highlights</span></h1>
+      <p style="color: var(--text-muted); margin-top: 0.4rem;">Access 4K recorded clips, AI face tracking demos, and stream clips.</p>
+    </div>
+
+    <!-- Gallery Grid -->
+    <div class="grid-3">
+      <!-- Item 1 -->
+      <div class="glass-card gallery-card" data-title="Face Mesh Tracking & AR Shader Demo" style="cursor: pointer;">
+        <div style="aspect-ratio: 16/9; border-radius: var(--radius-md); background: radial-gradient(circle, #3b0764 0%, #0f172a 100%); display: flex; align-items: center; justify-content: center; position: relative; margin-bottom: 1rem; overflow: hidden;">
+          <div style="font-size: 3rem;">⚡</div>
+          <span class="live-badge" style="position: absolute; bottom: 10px; right: 10px; background: rgba(0,0,0,0.7); border: none; font-size: 0.75rem;">04:15</span>
+        </div>
+        <h3>Face Mesh AR Overlay</h3>
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.3rem;">Real-time forehead meme text overlay rendered at 60 FPS on mobile feed.</p>
+      </div>
+
+      <!-- Item 2 -->
+      <div class="glass-card gallery-card" data-title="Ultra-Wide Lens Street Performance Highlights" style="cursor: pointer;">
+        <div style="aspect-ratio: 16/9; border-radius: var(--radius-md); background: radial-gradient(circle, #065f46 0%, #0f172a 100%); display: flex; align-items: center; justify-content: center; position: relative; margin-bottom: 1rem; overflow: hidden;">
+          <div style="font-size: 3rem;">🎷</div>
+          <span class="live-badge" style="position: absolute; bottom: 10px; right: 10px; background: rgba(0,0,0,0.7); border: none; font-size: 0.75rem;">12:40</span>
+        </div>
+        <h3>Downtown Live Set</h3>
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.3rem;">High-energy live music performance recorded on multi-camera wireless setup.</p>
+      </div>
+
+      <!-- Item 3 -->
+      <div class="glass-card gallery-card" data-title="Drone Aerial Stream Compilation" style="cursor: pointer;">
+        <div style="aspect-ratio: 16/9; border-radius: var(--radius-md); background: radial-gradient(circle, #1e3a8a 0%, #0f172a 100%); display: flex; align-items: center; justify-content: center; position: relative; margin-bottom: 1rem; overflow: hidden;">
+          <div style="font-size: 3rem;">🚁</div>
+          <span class="live-badge" style="position: absolute; bottom: 10px; right: 10px; background: rgba(0,0,0,0.7); border: none; font-size: 0.75rem;">08:22</span>
+        </div>
+        <h3>Aerial Sunset Footage</h3>
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.3rem;">4K HDR aerial flight footage synced with studio audio commentary.</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- Modal Lightbox for Media Preview -->
+  <div id="mediaModal" style="display: none; position: fixed; inset: 0; z-index: 2000; background: rgba(0,0,0,0.85); backdrop-filter: blur(12px); align-items: center; justify-content: center; padding: 2rem;">
+    <div class="glass-card" style="width: 100%; max-width: 800px; padding: 2rem; position: relative;">
+      <button id="modalCloseBtn" style="position: absolute; top: 1.5rem; right: 1.5rem; background: none; border: none; color: var(--text-main); font-size: 1.5rem; cursor: pointer;">✕</button>
+      <h2 id="modalTitle" style="margin-bottom: 1rem;">Media Preview</h2>
+      <div class="stream-viewport" style="aspect-ratio: 16/9; margin-bottom: 1.5rem;">
+        <div class="stream-canvas-mock" style="background: radial-gradient(circle, #1e1b4b 0%, #0f172a 100%);">
+          <div style="text-align: center;">
+            <div style="font-size: 4rem; margin-bottom: 1rem;">▶️</div>
+            <div style="font-family: var(--font-mono); color: var(--accent-cyan);">PLAYBACK READY (4K HDR)</div>
+          </div>
+        </div>
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span style="color: var(--text-dim); font-size: 0.85rem;">Codec: HEVC H.265 | Resolution: 3840x2160</span>
+        <button class="btn btn-primary" onclick="document.getElementById('mediaModal').style.display='none'">Close Preview</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div><strong>MobileStream Studio</strong> &copy; 2026 DGB Productions</div>
+      <div>Running on Google Chrome</div>
+    </div>
+  </footer>
+
+  <script src="../scripts/app.js"></script>
+</body>
+</html>

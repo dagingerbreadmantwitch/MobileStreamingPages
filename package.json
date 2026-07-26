@@ -1,0 +1,20 @@
+{
+  "name": "mobile-streaming-pages",
+  "version": "1.0.0",
+  "description": "Next-Gen Mobile Streaming & Production Web Workspace",
+  "main": "scripts/start-chrome.js",
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/start-chrome.js",
+    "dev": "node scripts/start-chrome.js"
+  },
+  "keywords": [
+    "mobile-streaming",
+    "live-video",
+    "camera-man",
+    "chrome",
+    "production-dashboard"
+  ],
+  "author": "DGB Productions",
+  "license": "MIT"
+}
