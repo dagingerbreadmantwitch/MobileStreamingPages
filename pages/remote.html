@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Master Stream Remote - MobileStream Studio</title>
-  <meta name="description" content="All-in-one smartphone remote control for WebM video overlays, Rive animations, clean overlay mode, chroma key green screen colors, custom text intro animations, and lower third graphics over WebSockets and WebRTC.">
-  <link rel="stylesheet" href="../styles/main.css">
+  <meta name="description" content="All-in-one passcode-secured smartphone remote control for WebM video overlays, Rive animations, PNG graphic overlays, clean overlay mode, and exclusive room pairing.">
+  <link rel="stylesheet" href="../styles/main.css?v=5.0">
   <style>
     body {
       padding-bottom: 5rem;
@@ -172,6 +172,40 @@
 </head>
 <body>
 
+  <!-- Security Passcode PIN Lock Modal -->
+  <div class="passcode-modal-overlay" id="passcodeModal">
+    <div class="passcode-modal-card">
+      <div style="font-size: 2.8rem; margin-bottom: 0.4rem;">🔐</div>
+      <h2 style="font-size: 1.3rem; margin-bottom: 0.2rem;">Stream Remote Locked</h2>
+      <div style="font-size: 0.8rem; color: var(--text-muted);">Enter Security Passcode PIN (Default: <strong>07357</strong>)</div>
+
+      <div class="pin-display-dots" id="pinDisplayDots">
+        <div class="pin-dot"></div>
+        <div class="pin-dot"></div>
+        <div class="pin-dot"></div>
+        <div class="pin-dot"></div>
+        <div class="pin-dot"></div>
+      </div>
+
+      <div class="keypad-grid">
+        <button class="keypad-btn" onclick="pressPin('1')">1</button>
+        <button class="keypad-btn" onclick="pressPin('2')">2</button>
+        <button class="keypad-btn" onclick="pressPin('3')">3</button>
+        <button class="keypad-btn" onclick="pressPin('4')">4</button>
+        <button class="keypad-btn" onclick="pressPin('5')">5</button>
+        <button class="keypad-btn" onclick="pressPin('6')">6</button>
+        <button class="keypad-btn" onclick="pressPin('7')">7</button>
+        <button class="keypad-btn" onclick="pressPin('8')">8</button>
+        <button class="keypad-btn" onclick="pressPin('9')">9</button>
+        <button class="keypad-btn" style="font-size: 1rem; color: #f87171;" onclick="clearPin()">CLEAR</button>
+        <button class="keypad-btn" onclick="pressPin('0')">0</button>
+        <button class="keypad-btn" style="font-size: 1.1rem; color: var(--accent-cyan);" onclick="submitPin()">UNLOCK</button>
+      </div>
+
+      <div id="pinErrorMsg" style="color: #f87171; font-size: 0.8rem; font-family: var(--font-mono); height: 20px; margin-top: 0.4rem;"></div>
+    </div>
+  </div>
+
   <!-- Top Controller Header -->
   <header class="remote-header">
     <div class="container" style="display: flex; justify-content: space-between; align-items: center; padding: 0;">
@@ -179,13 +213,16 @@
         <span style="font-size: 1.6rem;">📱</span>
         <div>
           <h2 style="font-size: 1.1rem; margin: 0;">Master Stream Remote</h2>
-          <div style="font-size: 0.75rem; color: var(--text-muted);">All-In-One OBS Stream Controller</div>
+          <div style="font-size: 0.75rem; color: var(--text-muted);">Passcode Secured OBS Remote</div>
         </div>
       </div>
 
-      <div class="status-indicator status-online" id="connectionStatus">
-        <span class="pulse-dot" style="background: #34d399; box-shadow: 0 0 8px #34d399;"></span>
-        <span id="statusText">LOCAL SYNC</span>
+      <div style="display: flex; align-items: center; gap: 0.6rem;">
+        <button class="btn btn-glass" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;" onclick="lockRemote()">🔒 Lock</button>
+        <div class="status-indicator status-online" id="connectionStatus">
+          <span class="pulse-dot" style="background: #34d399; box-shadow: 0 0 8px #34d399;"></span>
+          <span id="statusText">LOCAL SYNC</span>
+        </div>
       </div>
     </div>
   </header>
@@ -270,25 +307,27 @@
       </button>
     </div>
 
-    <!-- Dynamic WebM Selector & Custom Video Path -->
+    <!-- 5. PNG / APNG Graphic Overlay Controls -->
+    <h3 class="section-title">🖼️ PNG Graphic Overlay Assets</h3>
     <div class="glass-card" style="margin-bottom: 1.8rem;">
-      <h3 style="font-size: 1rem; margin-bottom: 0.8rem;">Dynamic WebM Selector & Custom Video</h3>
-      <div style="display: flex; gap: 0.8rem; flex-wrap: wrap; margin-bottom: 1rem;">
-        <select id="webmSelector" style="flex: 1; min-width: 220px; padding: 0.6rem 0.9rem; border-radius: 8px; border: 1px solid var(--border-glass-bright); background: rgba(15,23,42,0.9); color: #fff; font-family: var(--font-mono); font-size: 0.85rem;">
-          <option value="../assets/shark_no_bg.webm">🦈 Shark Overlay (shark_no_bg.webm)</option>
-          <option value="../assets/goldenstarr.webm">⭐ Golden Star (goldenstarr.webm)</option>
-          <option value="../assets/dragon_no_bg.webm">🐉 Dragon Overlay (dragon_no_bg.webm)</option>
-        </select>
-        <button class="btn btn-primary" id="btnPlaySelectedWebM" style="padding: 0.6rem 1.2rem;">Play Selected WebM</button>
-      </div>
+      <div style="display: flex; flex-direction: column; gap: 0.8rem;">
+        <input type="text" id="pngUrlInput" placeholder="Enter PNG image URL (e.g. https://example.com/logo.png)" style="width: 100%; padding: 0.6rem 0.9rem; border-radius: 8px; border: 1px solid var(--border-glass); background: rgba(0,0,0,0.4); color: #fff; font-family: var(--font-mono); font-size: 0.85rem;">
+        
+        <div style="display: flex; gap: 0.8rem; flex-wrap: wrap;">
+          <select id="pngPositionSelect" style="flex: 1; min-width: 180px; padding: 0.6rem 0.9rem; border-radius: 8px; border: 1px solid var(--border-glass); background: rgba(15,23,42,0.9); color: #fff; font-family: var(--font-mono); font-size: 0.85rem;">
+            <option value="pos-center">🎯 Dead Center</option>
+            <option value="pos-top-left">↖️ Top Left Corner</option>
+            <option value="pos-top-right">↗️ Top Right Corner</option>
+            <option value="pos-bottom">⬇️ Bottom Center</option>
+          </select>
 
-      <div style="display: flex; gap: 0.6rem;">
-        <input type="text" id="customVideoPath" placeholder="Custom file/URL (e.g. ../assets/custom.webm)" style="flex: 1; padding: 0.6rem 0.9rem; border-radius: 8px; border: 1px solid var(--border-glass); background: rgba(0,0,0,0.4); color: #fff; font-family: var(--font-mono); font-size: 0.85rem;">
-        <button class="btn btn-glass" id="btnPlayCustomVideo">Play Custom</button>
+          <button class="btn btn-primary" id="btnPushPng" style="padding: 0.6rem 1.4rem;">Push PNG Overlay</button>
+          <button class="btn btn-glass" id="btnClearPng" style="padding: 0.6rem 1rem; color: #f87171;">Clear PNG</button>
+        </div>
       </div>
     </div>
 
-    <!-- 5. Dynamic Custom Text & Intro Animation Picker -->
+    <!-- 6. Dynamic Custom Text & Intro Animation Picker -->
     <h3 class="section-title">✨ Dynamic Text Overlay & Intro Animations</h3>
     <div class="glass-card" style="margin-bottom: 1.8rem;">
       <div style="display: flex; flex-direction: column; gap: 0.8rem;">
@@ -307,7 +346,7 @@
       </div>
     </div>
 
-    <!-- 6. Stream Overlays, Lower Thirds & Live Alerts -->
+    <!-- 7. Stream Overlays, Lower Thirds & Live Alerts -->
     <h3 class="section-title">🏷️ Overlays, Lower Thirds & Live Alerts</h3>
     <div class="remote-grid">
       <!-- Trigger Live Alert -->
@@ -341,23 +380,19 @@
       </button>
     </div>
 
-    <!-- Custom Lower Third Input Form -->
-    <div class="glass-card" style="margin-bottom: 2rem;">
-      <h3 style="font-size: 1rem; margin-bottom: 0.8rem;">Custom Lower Third Host Name</h3>
-      <div style="display: flex; flex-direction: column; gap: 0.8rem;">
-        <input type="text" id="customTitle" placeholder="Streamer / Host Name (e.g. @AlexStreamer)" style="width: 100%; padding: 0.6rem 0.9rem; border-radius: 8px; border: 1px solid var(--border-glass); background: rgba(0,0,0,0.4); color: #fff;">
-        <input type="text" id="customSubtitle" placeholder="Subtitle / Topic (e.g. 4K Mobile IRL Stream)" style="width: 100%; padding: 0.6rem 0.9rem; border-radius: 8px; border: 1px solid var(--border-glass); background: rgba(0,0,0,0.4); color: #fff;">
-        <button class="btn btn-glass" id="btnUpdateLowerThird" style="width: 100%;">Push Custom Lower Third</button>
-      </div>
-    </div>
-
   </main>
 
-  <script src="../scripts/remote-control.js"></script>
+  <script src="../scripts/remote-control.js?v=5.0"></script>
   <script>
+    let currentPin = '';
     let isCleanMode = false;
 
     document.addEventListener('DOMContentLoaded', () => {
+      // Check unlock state
+      if (window.remoteEngine.checkUnlockState()) {
+        document.getElementById('passcodeModal').style.display = 'none';
+      }
+
       const roomDisplay = document.getElementById('displayRoomId');
       const inputRoom = document.getElementById('inputRoomId');
       const connectBtn = document.getElementById('connectRoomBtn');
@@ -410,22 +445,23 @@
         window.remoteEngine.send('toggle_clean_mode', { clean: false });
       });
 
+      // PNG Overlay Trigger
+      document.getElementById('btnPushPng')?.addEventListener('click', () => {
+        const src = document.getElementById('pngUrlInput').value.trim();
+        const position = document.getElementById('pngPositionSelect').value || 'pos-center';
+        if (src) {
+          window.remoteEngine.send('show_png_overlay', { src, position, duration: 10000 });
+        }
+      });
+
+      document.getElementById('btnClearPng')?.addEventListener('click', () => {
+        window.remoteEngine.send('clear_png_overlay');
+      });
+
       // Custom Chroma Color Trigger
       document.getElementById('btnCustomColor')?.addEventListener('click', () => {
         const color = document.getElementById('customColorInput').value;
         setChromaColor(color);
-      });
-
-      // Play Selected WebM
-      document.getElementById('btnPlaySelectedWebM')?.addEventListener('click', () => {
-        const src = document.getElementById('webmSelector').value;
-        playWebM(src);
-      });
-
-      // Play Custom Path / URL
-      document.getElementById('btnPlayCustomVideo')?.addEventListener('click', () => {
-        const src = document.getElementById('customVideoPath').value.trim();
-        if (src) playWebM(src);
       });
 
       // Push Dynamic Text Overlay
@@ -448,15 +484,48 @@
         document.querySelectorAll('.touch-btn').forEach(b => b.classList.remove('active'));
         window.remoteEngine.send('clear_all');
       });
-
-      // Custom Lower Third Submit
-      document.getElementById('btnUpdateLowerThird')?.addEventListener('click', () => {
-        const title = document.getElementById('customTitle').value || 'MobileStream Studio';
-        const subtitle = document.getElementById('customSubtitle').value || 'Live Stream Broadcast';
-        window.remoteEngine.send('show_lower_third', { title, subtitle });
-        document.getElementById('btnLowerThird')?.classList.add('active');
-      });
     });
+
+    // Passcode Security Keypad Functions (PIN: 07357)
+    function pressPin(digit) {
+      if (currentPin.length < 5) {
+        currentPin += digit;
+        updatePinDots();
+      }
+      if (currentPin.length === 5) {
+        submitPin();
+      }
+    }
+
+    function clearPin() {
+      currentPin = '';
+      updatePinDots();
+      document.getElementById('pinErrorMsg').textContent = '';
+    }
+
+    function updatePinDots() {
+      const dots = document.querySelectorAll('.pin-dot');
+      dots.forEach((dot, index) => {
+        dot.classList.toggle('filled', index < currentPin.length);
+      });
+    }
+
+    function submitPin() {
+      if (window.remoteEngine.validatePasscode(currentPin)) {
+        document.getElementById('passcodeModal').style.display = 'none';
+        document.getElementById('pinErrorMsg').textContent = '';
+      } else {
+        document.getElementById('pinErrorMsg').textContent = 'Incorrect Security PIN';
+        clearPin();
+      }
+    }
+
+    function lockRemote() {
+      sessionStorage.removeItem('msp_remote_unlocked');
+      currentPin = '';
+      updatePinDots();
+      document.getElementById('passcodeModal').style.display = 'flex';
+    }
 
     // Helper Dispatch Functions
     function setChromaColor(color) {

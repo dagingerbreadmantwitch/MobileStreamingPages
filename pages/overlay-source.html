@@ -7,8 +7,8 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>Transparent Landscape Mobile Stream Overlay Source</title>
-  <meta name="description" content="100% Transparent 16:9 landscape mobile stream browser source overlay with WebSockets/PeerJS phone remote control for Rive animations, WebM videos, clean overlay mode, chroma key color customizer, and intro-animated custom text.">
-  <link rel="stylesheet" href="../styles/main.css?v=3.0">
+  <meta name="description" content="100% Transparent 16:9 landscape mobile stream browser source overlay with WebSockets/PeerJS phone remote control for Rive animations, WebM videos, PNG overlays, clean overlay mode, and passcode security handshake.">
+  <link rel="stylesheet" href="../styles/main.css?v=4.0">
   <!-- Rive Web Canvas JS Runtime -->
   <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
   <style>
@@ -40,7 +40,7 @@
       pointer-events: auto;
     }
 
-    /* Media Overlay Layers (Rive Canvas & WebM Video Player) */
+    /* Media Overlay Layers (Rive Canvas, WebM Video & PNG Overlay) */
     .media-overlay-container {
       position: fixed;
       inset: 0;
@@ -199,10 +199,11 @@
 </head>
 <body class="transparent-mode" id="overlayBody">
 
-  <!-- Fullscreen Media Overlay Layers (Rive Canvas & WebM Video) -->
+  <!-- Fullscreen Media Overlay Layers (Rive Canvas, WebM Video & PNG Overlay) -->
   <div class="media-overlay-container">
     <canvas id="riveCanvas"></canvas>
     <video id="overlayVideo" playsinline webkit-playsinline></video>
+    <img id="pngOverlayImage" class="png-overlay-image" alt="PNG Overlay">
   </div>
 
   <!-- Dynamic Text Banner Overlay - Dead-Centered in Middle of Screen -->
@@ -222,7 +223,8 @@
       </div>
 
       <div style="font-size: 0.75rem; color: var(--text-muted);">
-        Open <strong>/pages/remote.html</strong> on your phone to trigger live media remotely!
+        Pairing Code: <strong style="color: var(--accent-cyan);" id="pairCodeDisplay">----</strong><br>
+        Open <strong>/pages/remote.html</strong> on your phone and enter this code!
       </div>
 
       <!-- Quick Action Controls -->
@@ -310,12 +312,13 @@
     </div>
   </div>
 
-  <script src="../scripts/remote-control.js?v=3.0"></script>
+  <script src="../scripts/remote-control.js?v=4.0"></script>
   <script>
     // Menu Drawer Toggle
     const menuBtn = document.getElementById('menuToggleBtn');
     const menuDrawer = document.getElementById('menuDrawer');
     const menuRoomId = document.getElementById('menuRoomId');
+    const pairCodeDisplay = document.getElementById('pairCodeDisplay');
     let currentRiveInstance = null;
     let textTimeout = null;
 
@@ -323,9 +326,10 @@
       menuDrawer.classList.toggle('open');
     });
 
-    // Initialize Remote Control Receiver
+    // Initialize Remote Control Receiver with Room ID
     window.remoteEngine.initPeerReceiver((roomId) => {
-      menuRoomId.textContent = `ROOM ${roomId}`;
+      if (menuRoomId) menuRoomId.textContent = `ROOM ${roomId}`;
+      if (pairCodeDisplay) pairCodeDisplay.textContent = roomId;
     });
 
     // Handle Remote Commands (from remote.html)
@@ -333,6 +337,12 @@
       const { action, payload } = event;
 
       switch (action) {
+        case 'show_png_overlay':
+          showPngOverlay(payload.src, payload.position, payload.duration);
+          break;
+        case 'clear_png_overlay':
+          clearPngOverlay();
+          break;
         case 'toggle_clean_mode':
           setCleanMode(payload.clean);
           break;
@@ -380,7 +390,27 @@
       }
     });
 
-    // Total Clean Overlay Mode Helper (Hides ALL HUD badges, stats, and graphic controls button)
+    // PNG Graphic Overlay Engine
+    function showPngOverlay(src, position = 'pos-center', duration = 8000) {
+      const img = document.getElementById('pngOverlayImage');
+      if (!img || !src) return;
+
+      img.className = `png-overlay-image visible ${position || 'pos-center'}`;
+      img.src = src;
+
+      if (duration && duration > 0) {
+        setTimeout(() => {
+          clearPngOverlay();
+        }, duration);
+      }
+    }
+
+    function clearPngOverlay() {
+      const img = document.getElementById('pngOverlayImage');
+      if (img) img.className = 'png-overlay-image';
+    }
+
+    // Total Clean Overlay Mode Helper
     function setCleanMode(isClean) {
       const active = isClean !== undefined ? isClean : !document.body.classList.contains('clean-overlay-mode');
       
@@ -402,7 +432,7 @@
       setCleanMode();
     }
 
-    // Chroma Key Background Setter (Fixes CSS precedence)
+    // Chroma Key Background Setter
     function setChromaBg(color) {
       const body = document.body;
       const html = document.documentElement;
@@ -432,7 +462,6 @@
       banner.textContent = text;
       banner.style.color = color;
 
-      // Add animation class
       banner.classList.add(animStyle || 'intro-bounce-pop');
 
       if (textTimeout) clearTimeout(textTimeout);
@@ -465,8 +494,6 @@
             console.warn('[Rive] Could not load .riv file from path:', src, err);
           }
         });
-      } else {
-        console.warn('[Rive] Rive Canvas library runtime not detected.');
       }
     }
 
@@ -502,6 +529,8 @@
         video.style.display = 'none';
       }
       if (textBanner) textBanner.className = 'dynamic-text-banner';
+      clearPngOverlay();
+
       if (currentRiveInstance) {
         currentRiveInstance.cleanup();
         currentRiveInstance = null;

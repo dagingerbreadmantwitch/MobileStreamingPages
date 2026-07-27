@@ -1,9 +1,11 @@
 /**
  * MobileStream Studio - Remote Control Communication Engine
  * Supports BroadcastChannel for local tab sync and PeerJS (WebRTC) for remote phone sync across devices.
+ * Includes Security Passcode validation & Exclusive Session Handshake to prevent interference.
  */
 
 const MSP_CHANNEL_NAME = 'msp_overlay_channel';
+const DEFAULT_PASSCODE = '07357';
 
 class RemoteControlEngine {
   constructor() {
@@ -12,6 +14,9 @@ class RemoteControlEngine {
     this.connection = null;
     this.listeners = [];
     this.roomId = this.getOrCreateRoomId();
+    this.sessionToken = this.getOrCreateSessionToken();
+    this.pairingLockEnabled = false;
+    this.isUnlocked = false;
     this.initBroadcastChannel();
   }
 
@@ -29,6 +34,43 @@ class RemoteControlEngine {
     return storedRoom;
   }
 
+  // Generate unique session token for exclusive device handshake
+  getOrCreateSessionToken() {
+    let token = sessionStorage.getItem('msp_session_token');
+    if (!token) {
+      token = 'token_' + Math.random().toString(36).substring(2, 10);
+      sessionStorage.setItem('msp_session_token', token);
+    }
+    return token;
+  }
+
+  // Passcode Security Validation (Default PIN: 07357 or custom setting)
+  validatePasscode(pin) {
+    const savedPin = localStorage.getItem('msp_passcode_pin') || DEFAULT_PASSCODE;
+    if (pin === savedPin) {
+      this.isUnlocked = true;
+      sessionStorage.setItem('msp_remote_unlocked', 'true');
+      return true;
+    }
+    return false;
+  }
+
+  // Check if passcode lock is currently unlocked
+  checkUnlockState() {
+    const isUnlocked = sessionStorage.getItem('msp_remote_unlocked') === 'true';
+    this.isUnlocked = isUnlocked;
+    return isUnlocked;
+  }
+
+  // Set new passcode
+  setPasscode(newPin) {
+    if (newPin && newPin.length >= 4) {
+      localStorage.setItem('msp_passcode_pin', newPin);
+      return true;
+    }
+    return false;
+  }
+
   // Initialize local BroadcastChannel (same-origin tabs)
   initBroadcastChannel() {
     if ('BroadcastChannel' in window) {
@@ -43,7 +85,6 @@ class RemoteControlEngine {
   initPeerReceiver(onReadyCallback) {
     const peerId = `msp-room-${this.roomId.toLowerCase()}`;
     
-    // Load PeerJS dynamically if not present
     this.loadPeerJS(() => {
       this.peer = new Peer(peerId);
 
@@ -54,10 +95,18 @@ class RemoteControlEngine {
 
       this.peer.on('connection', (conn) => {
         console.log('[RemoteControl] Mobile controller connected!');
+        
+        // Handle Exclusive Session Handshake
+        if (this.pairingLockEnabled && this.connection && this.connection.open) {
+          console.warn('[RemoteControl] Exclusive Pairing Active. Rejecting secondary controller.');
+          conn.send({ action: 'pairing_rejected', payload: { reason: 'Room is locked to primary controller' } });
+          setTimeout(() => conn.close(), 1000);
+          return;
+        }
+
         this.connection = conn;
         conn.on('data', (data) => {
           this.notifyListeners(data);
-          // Echo back to local BroadcastChannel as well
           if (this.broadcastChannel) this.broadcastChannel.postMessage(data);
         });
       });
@@ -82,6 +131,13 @@ class RemoteControlEngine {
         conn.on('open', () => {
           console.log('[RemoteControl] Connected to stream overlay!');
           this.connection = conn;
+          
+          // Send handshake verification payload
+          conn.send({
+            action: 'handshake',
+            payload: { sessionToken: this.sessionToken, timestamp: Date.now() }
+          });
+
           if (onConnectCallback) onConnectCallback();
         });
 
@@ -123,9 +179,13 @@ class RemoteControlEngine {
     this.listeners.forEach(cb => cb(data));
   }
 
-  // Dispatch an action/event to both BroadcastChannel and Peer connection
+  // Dispatch an action/event with Session Handshake Token
   send(action, payload = {}) {
-    const message = { action, payload, timestamp: Date.now() };
+    const message = { 
+      action, 
+      payload: { ...payload, sessionToken: this.sessionToken }, 
+      timestamp: Date.now() 
+    };
 
     // Broadcast locally
     if (this.broadcastChannel) {
