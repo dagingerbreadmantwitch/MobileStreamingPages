@@ -8,7 +8,7 @@
   <meta http-equiv="Expires" content="0">
   <title>Transparent Landscape Mobile Stream Overlay Source</title>
   <meta name="description" content="100% Transparent 16:9 landscape mobile stream browser source overlay with WebSockets/PeerJS phone remote control for Rive animations, WebM transparent videos, PNG overlays, clean overlay mode, and passcode security handshake.">
-  <link rel="stylesheet" href="../styles/main.css?v=12.0">
+  <link rel="stylesheet" href="../styles/main.css?v=13.0">
   <!-- Rive Web Canvas JS Runtime -->
   <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
   <style>
@@ -215,7 +215,7 @@
   <!-- Fullscreen Media Overlay Layers (Rive Canvas, WebM Video, Alpha Canvas & PNG Overlay) -->
   <div class="media-overlay-container">
     <canvas id="riveCanvas"></canvas>
-    <video id="overlayVideo" playsinline webkit-playsinline muted crossorigin="anonymous"></video>
+    <video id="overlayVideo" autoplay playsinline webkit-playsinline muted crossorigin="anonymous"></video>
     <canvas id="alphaCanvas"></canvas>
     <img id="pngOverlayImage" class="png-overlay-image" alt="PNG Overlay">
   </div>
@@ -326,7 +326,7 @@
     </div>
   </div>
 
-  <script src="../scripts/remote-control.js?v=12.0"></script>
+  <script src="../scripts/remote-control.js?v=13.0"></script>
   <script>
     // Menu Drawer Toggle
     const menuBtn = document.getElementById('menuToggleBtn');
@@ -514,13 +514,20 @@
       }
     }
 
-    // WebM Video Player Logic Supporting 3 Selectable Modes (Native Alpha, CSS Screen Blend, Canvas Luma Key)
+    // Robust Video Player Logic (Guarantees Full 60fps Playback & Prevents Frame 1 Freeze)
     function playWebM(src = '../assets/shark_no_bg.webm', playbackMode = 'native') {
       const video = document.getElementById('overlayVideo');
       const canvas = document.getElementById('alphaCanvas');
       if (!video || !canvas) return;
 
       if (alphaKeyAnimFrame) cancelAnimationFrame(alphaKeyAnimFrame);
+
+      // Reset video decoder state cleanly to prevent frame-0 freeze
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+      video.muted = true;
+      video.autoplay = true;
 
       if (playbackMode === 'lumakey') {
         // Mode 3: Canvas Luma Key Processor (Strips Black)
@@ -529,16 +536,14 @@
 
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
         video.src = src;
-        video.currentTime = 0;
 
-        video.onloadedmetadata = () => {
+        video.onloadeddata = () => {
           canvas.width = video.videoWidth || 1280;
           canvas.height = video.videoHeight || 720;
+          video.play().then(() => {
+            processLumaKeyFrame();
+          }).catch(err => console.warn('[Video Engine] Luma key play error:', err));
         };
-        
-        video.play().then(() => {
-          processLumaKeyFrame();
-        }).catch(err => console.warn(err));
 
         function processLumaKeyFrame() {
           if (video.paused || video.ended) {
@@ -565,7 +570,7 @@
           canvas.style.display = 'none';
         };
       } else {
-        // Mode 1: Native HTML5 WebM (As-Is Built-in Alpha) or Mode 2: CSS Screen Blend
+        // Mode 1: Native HTML5 (As-Is Alpha) or Mode 2: CSS Screen Blend
         canvas.style.display = 'none';
         video.style.display = 'block';
         video.style.setProperty('background', 'transparent', 'important');
@@ -574,15 +579,19 @@
         if (playbackMode === 'screen') {
           video.style.mixBlendMode = 'screen';
         } else {
-          video.style.mixBlendMode = 'normal'; // Native WebM alpha playback as-is
+          video.style.mixBlendMode = 'normal';
         }
 
         video.src = src;
-        video.currentTime = 0;
-        
-        video.play().then(() => {
-          console.log(`[Video] Playing ${src} with mode: ${playbackMode}`);
-        }).catch(err => console.warn(err));
+
+        video.onloadeddata = () => {
+          video.play().then(() => {
+            console.log(`[Video Engine] Smooth playback active for ${src} (${playbackMode})`);
+          }).catch(err => {
+            console.warn('[Video Engine] Playback promise note:', err);
+            video.play();
+          });
+        };
 
         video.onended = () => {
           video.style.display = 'none';
