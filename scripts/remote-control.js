@@ -1,12 +1,26 @@
 /**
  * MobileStream Studio - Remote Control Communication Engine
  * Supports BroadcastChannel for local tab sync and PeerJS (WebRTC) for remote phone sync across devices.
- * Includes Encrypted Security Passcode (SHA-256 Hash) & Exclusive Session Handshake.
+ * Includes Multi-STUN ICE configuration for Carrier NAT penetration, SHA-256 Passcode, & Exclusive Session Handshake.
  */
 
 const MSP_CHANNEL_NAME = 'msp_overlay_channel';
 // SHA-256 Hash of security PIN - Prevents plaintext exposure when inspecting code
 const PASSCODE_SHA256_HASH = 'bd9d557d0e6b68cb3a53999e0cfd3a6371b4cddf8342140db6b8a500c64daced';
+
+// STUN/ICE Server configuration to ensure phone-to-computer connections pierce Carrier NAT / 5G
+const PEER_ICE_CONFIG = {
+  config: {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'stun:stun2.l.google.com:19302' },
+      { urls: 'stun:stun3.l.google.com:19302' },
+      { urls: 'stun:stun4.l.google.com:19302' },
+      { urls: 'stun:global.stun.twilio.com:3478' }
+    ]
+  }
+};
 
 class RemoteControlEngine {
   constructor() {
@@ -98,7 +112,7 @@ class RemoteControlEngine {
     const peerId = `msp-room-${this.roomId.toLowerCase()}`;
     
     this.loadPeerJS(() => {
-      this.peer = new Peer(peerId);
+      this.peer = new Peer(peerId, PEER_ICE_CONFIG);
 
       this.peer.on('open', (id) => {
         console.log('[RemoteControl] OBS Receiver Peer initialized with ID:', id);
@@ -134,7 +148,7 @@ class RemoteControlEngine {
     const peerId = `msp-room-${targetRoomId.toLowerCase()}`;
 
     this.loadPeerJS(() => {
-      this.peer = new Peer();
+      this.peer = new Peer(PEER_ICE_CONFIG);
 
       this.peer.on('open', () => {
         console.log('[RemoteControl] Connecting to receiver room:', targetRoomId);
