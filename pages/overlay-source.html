@@ -8,7 +8,7 @@
   <meta http-equiv="Expires" content="0">
   <title>Transparent Landscape Mobile Stream Overlay Source</title>
   <meta name="description" content="100% Transparent 16:9 landscape mobile stream browser source overlay with WebSockets/PeerJS phone remote control for Rive animations, WebM videos, PNG overlays, clean overlay mode, and passcode security handshake.">
-  <link rel="stylesheet" href="../styles/main.css?v=4.0">
+  <link rel="stylesheet" href="../styles/main.css?v=5.0">
   <!-- Rive Web Canvas JS Runtime -->
   <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
   <style>
@@ -241,7 +241,7 @@
 
       <!-- Chroma Key Color Switcher -->
       <div style="border-top: 1px solid var(--border-glass); pt: 0.6rem; margin-top: 0.4rem;">
-        <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.3rem;">Chroma Key Green Screen Color:</div>
+        <div style="font-size: 0.75rem; color: var(--text-muted);">Chroma Key Green Screen Color:</div>
         <div style="display: flex; gap: 0.3rem;">
           <button class="btn btn-glass" style="padding: 0.3rem 0.4rem; font-size: 0.7rem; flex: 1;" onclick="setChromaBg('#00ff00')">🟢 Green</button>
           <button class="btn btn-glass" style="padding: 0.3rem 0.4rem; font-size: 0.7rem; flex: 1;" onclick="setChromaBg('#00ff66')">🟢 Lime</button>
@@ -302,23 +302,24 @@
         </div>
       </div>
 
-      <!-- Bottom Speed Telemetry Widget -->
+      <!-- Bottom Stream Room Code Badge (Replaces Current Speed) -->
       <div class="top-telemetry-badge" id="bottomTelemetry" style="border-radius: 12px; padding: 0.6rem 1rem;">
         <div>
-          <div style="font-size: 0.7rem; color: var(--text-muted);">CURRENT SPEED</div>
-          <div style="font-weight: 800; color: #00ffcc; font-size: 1rem;">42.5 MPH</div>
+          <div style="font-size: 0.7rem; color: var(--text-muted);">STREAM ROOM CODE</div>
+          <div style="font-weight: 800; color: #00ffcc; font-size: 1.1rem; letter-spacing: 0.05em;" id="overlayRoomCode">ROOM ----</div>
         </div>
       </div>
     </div>
   </div>
 
-  <script src="../scripts/remote-control.js?v=4.0"></script>
+  <script src="../scripts/remote-control.js?v=5.0"></script>
   <script>
     // Menu Drawer Toggle
     const menuBtn = document.getElementById('menuToggleBtn');
     const menuDrawer = document.getElementById('menuDrawer');
     const menuRoomId = document.getElementById('menuRoomId');
     const pairCodeDisplay = document.getElementById('pairCodeDisplay');
+    const overlayRoomCode = document.getElementById('overlayRoomCode');
     let currentRiveInstance = null;
     let textTimeout = null;
 
@@ -330,6 +331,7 @@
     window.remoteEngine.initPeerReceiver((roomId) => {
       if (menuRoomId) menuRoomId.textContent = `ROOM ${roomId}`;
       if (pairCodeDisplay) pairCodeDisplay.textContent = roomId;
+      if (overlayRoomCode) overlayRoomCode.textContent = `ROOM ${roomId}`;
     });
 
     // Handle Remote Commands (from remote.html)
