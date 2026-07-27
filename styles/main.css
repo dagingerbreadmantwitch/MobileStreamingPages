@@ -502,6 +502,7 @@ h3 { font-size: clamp(1.3rem, 2vw, 1.75rem); }
 
 /* Transparent & Chroma Background Modes */
 body.transparent-mode, html.transparent-mode {
+  background-color: transparent !important;
   background-image: none !important;
 }
 
