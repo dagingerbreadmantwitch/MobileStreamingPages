@@ -7,14 +7,15 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>Transparent Landscape Mobile Stream Overlay Source</title>
-  <meta name="description" content="100% Transparent 16:9 landscape mobile stream browser source overlay with WebSockets/PeerJS phone remote control for Rive animations, WebM videos, PNG overlays, clean overlay mode, and passcode security handshake.">
-  <link rel="stylesheet" href="../styles/main.css?v=5.0">
+  <meta name="description" content="100% Transparent 16:9 landscape mobile stream browser source overlay with WebSockets/PeerJS phone remote control for Rive animations, WebM transparent videos, PNG overlays, clean overlay mode, and passcode security handshake.">
+  <link rel="stylesheet" href="../styles/main.css?v=6.0">
   <!-- Rive Web Canvas JS Runtime -->
   <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
   <style>
     /* Landscape Phone Viewport Override (16:9 Widescreen Stream Layout) */
     html, body {
       background: transparent !important;
+      background-color: transparent !important;
       background-image: none !important;
       overflow: hidden;
       width: 100vw;
@@ -49,6 +50,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      background: transparent !important;
     }
 
     #riveCanvas {
@@ -56,14 +58,26 @@
       height: 100%;
       object-fit: contain;
       display: none;
+      background: transparent !important;
     }
 
+    /* WebM Transparent Video & Canvas Keyer */
     #overlayVideo {
       width: 100%;
       height: 100%;
       object-fit: contain;
       display: none;
-      background: transparent;
+      background: transparent !important;
+      background-color: transparent !important;
+      mix-blend-mode: screen; /* Converts black backgrounds to 100% transparent in all browsers */
+    }
+
+    #alphaCanvas {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: none;
+      background: transparent !important;
     }
 
     .top-telemetry-badge {
@@ -199,10 +213,11 @@
 </head>
 <body class="transparent-mode" id="overlayBody">
 
-  <!-- Fullscreen Media Overlay Layers (Rive Canvas, WebM Video & PNG Overlay) -->
+  <!-- Fullscreen Media Overlay Layers (Rive Canvas, WebM Video, Alpha Canvas & PNG Overlay) -->
   <div class="media-overlay-container">
     <canvas id="riveCanvas"></canvas>
-    <video id="overlayVideo" playsinline webkit-playsinline></video>
+    <video id="overlayVideo" playsinline webkit-playsinline muted crossorigin="anonymous"></video>
+    <canvas id="alphaCanvas"></canvas>
     <img id="pngOverlayImage" class="png-overlay-image" alt="PNG Overlay">
   </div>
 
@@ -302,7 +317,7 @@
         </div>
       </div>
 
-      <!-- Bottom Stream Room Code Badge (Replaces Current Speed) -->
+      <!-- Bottom Stream Room Code Badge -->
       <div class="top-telemetry-badge" id="bottomTelemetry" style="border-radius: 12px; padding: 0.6rem 1rem;">
         <div>
           <div style="font-size: 0.7rem; color: var(--text-muted);">STREAM ROOM CODE</div>
@@ -312,7 +327,7 @@
     </div>
   </div>
 
-  <script src="../scripts/remote-control.js?v=5.0"></script>
+  <script src="../scripts/remote-control.js?v=6.0"></script>
   <script>
     // Menu Drawer Toggle
     const menuBtn = document.getElementById('menuToggleBtn');
@@ -499,17 +514,21 @@
       }
     }
 
-    // WebM Video Player Logic
+    // Transparent WebM Video Player Logic with Fallback Alpha Canvas Keying
     function playWebM(src = '../assets/shark_no_bg.webm') {
       const video = document.getElementById('overlayVideo');
       if (!video) return;
 
       video.style.display = 'block';
+      video.style.setProperty('background', 'transparent', 'important');
+      video.style.setProperty('background-color', 'transparent', 'important');
+      video.style.mixBlendMode = 'screen'; // Screen blend drops black pixels to 100% transparency
+      
       video.src = src;
       video.currentTime = 0;
       
       video.play().then(() => {
-        console.log('[Video] WebM video playback started:', src);
+        console.log('[Video] WebM transparent video playback started:', src);
       }).catch(err => {
         console.warn('[Video] Playback note:', err);
       });
@@ -523,9 +542,11 @@
     function stopAllMedia() {
       const canvas = document.getElementById('riveCanvas');
       const video = document.getElementById('overlayVideo');
+      const alphaCanvas = document.getElementById('alphaCanvas');
       const textBanner = document.getElementById('dynamicTextOverlay');
 
       if (canvas) canvas.style.display = 'none';
+      if (alphaCanvas) alphaCanvas.style.display = 'none';
       if (video) {
         video.pause();
         video.style.display = 'none';
