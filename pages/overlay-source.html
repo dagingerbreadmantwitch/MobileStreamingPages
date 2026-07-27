@@ -8,7 +8,7 @@
   <meta http-equiv="Expires" content="0">
   <title>Transparent Landscape Mobile Stream Overlay Source</title>
   <meta name="description" content="100% Transparent 16:9 landscape mobile stream browser source overlay with WebSockets/PeerJS phone remote control for Rive animations, WebM videos, clean overlay mode, chroma key color customizer, and intro-animated custom text.">
-  <link rel="stylesheet" href="../styles/main.css?v=2.5">
+  <link rel="stylesheet" href="../styles/main.css?v=3.0">
   <!-- Rive Web Canvas JS Runtime -->
   <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
   <style>
@@ -205,7 +205,7 @@
     <video id="overlayVideo" playsinline webkit-playsinline></video>
   </div>
 
-  <!-- Dynamic Text Banner Overlay -->
+  <!-- Dynamic Text Banner Overlay - Dead-Centered in Middle of Screen -->
   <div class="dynamic-text-banner" id="dynamicTextOverlay">WELCOME TO THE STREAM!</div>
 
   <!-- Floating Menu Button (For Local Controls & Phone Remote Pairing) -->
@@ -310,7 +310,7 @@
     </div>
   </div>
 
-  <script src="../scripts/remote-control.js?v=2.5"></script>
+  <script src="../scripts/remote-control.js?v=3.0"></script>
   <script>
     // Menu Drawer Toggle
     const menuBtn = document.getElementById('menuToggleBtn');
@@ -328,7 +328,7 @@
       menuRoomId.textContent = `ROOM ${roomId}`;
     });
 
-    // Handle Remote Commands (from remote.html or media-remote.html)
+    // Handle Remote Commands (from remote.html)
     window.remoteEngine.subscribe((event) => {
       const { action, payload } = event;
 
@@ -380,20 +380,50 @@
       }
     });
 
-    // Clean Overlay Mode Helper
+    // Total Clean Overlay Mode Helper (Hides ALL HUD badges, stats, and graphic controls button)
     function setCleanMode(isClean) {
-      if (isClean !== undefined) {
-        document.body.classList.toggle('clean-overlay-mode', isClean);
-      } else {
-        document.body.classList.toggle('clean-overlay-mode');
-      }
+      const active = isClean !== undefined ? isClean : !document.body.classList.contains('clean-overlay-mode');
+      
+      document.body.classList.toggle('clean-overlay-mode', active);
+      document.documentElement.classList.toggle('clean-overlay-mode', active);
+
+      const hudContainer = document.querySelector('.overlay-hud-container');
+      const floatMenu = document.querySelector('.floating-menu-container');
+      const topHud = document.getElementById('topHudBar');
+      const bottomHud = document.getElementById('bottomTelemetry');
+
+      if (hudContainer) hudContainer.style.display = active ? 'none' : 'flex';
+      if (floatMenu) floatMenu.style.display = active ? 'none' : 'block';
+      if (topHud) topHud.style.display = active ? 'none' : 'flex';
+      if (bottomHud) bottomHud.style.display = active ? 'none' : 'inline-flex';
     }
 
     function toggleCleanOverlay() {
       setCleanMode();
     }
 
-    // Dynamic Text Banner Player
+    // Chroma Key Background Setter (Fixes CSS precedence)
+    function setChromaBg(color) {
+      const body = document.body;
+      const html = document.documentElement;
+
+      body.className = '';
+      html.className = '';
+
+      if (!color || color === 'transparent') {
+        body.style.setProperty('background-color', 'transparent', 'important');
+        html.style.setProperty('background-color', 'transparent', 'important');
+        body.style.setProperty('background-image', 'none', 'important');
+        html.style.setProperty('background-image', 'none', 'important');
+      } else {
+        body.style.setProperty('background-color', color, 'important');
+        html.style.setProperty('background-color', color, 'important');
+        body.style.setProperty('background-image', 'none', 'important');
+        html.style.setProperty('background-image', 'none', 'important');
+      }
+    }
+
+    // Dynamic Text Banner Player - Dead-Centered in Middle of Canvas
     function showCustomText(text = 'LIVE STREAM', animStyle = 'intro-bounce-pop', color = '#ffffff') {
       const banner = document.getElementById('dynamicTextOverlay');
       if (!banner) return;
@@ -525,22 +555,6 @@
       document.getElementById('faceGridContainer').style.display = 'none';
       document.getElementById('alertBox').style.display = 'none';
       stopAllMedia();
-    }
-
-    function setChromaBg(color) {
-      const body = document.body;
-      const html = document.documentElement;
-
-      body.className = '';
-      html.className = '';
-
-      if (color === 'transparent') {
-        body.classList.add('transparent-mode');
-        html.classList.add('transparent-mode');
-        body.style.backgroundColor = 'transparent';
-      } else {
-        body.style.backgroundColor = color;
-      }
     }
 
     // Live clock update

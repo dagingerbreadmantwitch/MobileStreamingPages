@@ -541,19 +541,8 @@ h3 { font-size: clamp(1.3rem, 2vw, 1.75rem); }
   position: relative;
 }
 
-.chroma-bg-green {
-  background-color: #00ff00 !important;
-  background-image: none !important;
-}
-
-.chroma-bg-transparent {
-  background-color: transparent !important;
-  background-image: none !important;
-}
-
-/* Transparent Browser Source Mode for Mobile Streaming Apps (OBS / Prism / Larix) */
+/* Transparent & Chroma Background Modes */
 body.transparent-mode, html.transparent-mode {
-  background-color: transparent !important;
   background-image: none !important;
 }
 
@@ -562,6 +551,19 @@ body.chroma-green-mode, html.chroma-green-mode {
   background-image: none !important;
 }
 
+/* Clean Overlay Mode - Completely Hides ALL HUD elements & Graphic Control Buttons */
+body.clean-overlay-mode .overlay-hud-container,
+body.clean-overlay-mode .floating-menu-container,
+body.clean-overlay-mode #topHudBar,
+body.clean-overlay-mode #bottomTelemetry,
+body.clean-overlay-mode #menuToggleBtn,
+html.clean-overlay-mode .overlay-hud-container,
+html.clean-overlay-mode .floating-menu-container {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
 
 /* Mobile Phone Frame Simulator */
 .phone-viewport-frame {
@@ -675,3 +677,67 @@ body.chroma-green-mode, html.chroma-green-mode {
   width: 100%;
 }
 
+/* Dynamic Custom Text Overlay - Centered in the Middle of Screen */
+.dynamic-text-banner {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(15, 23, 42, 0.92);
+  backdrop-filter: blur(16px);
+  border: 2px solid var(--accent-cyan);
+  border-radius: var(--radius-xl);
+  padding: 1.2rem 2.8rem;
+  color: #ffffff;
+  font-family: var(--font-heading);
+  font-size: 2.2rem;
+  font-weight: 900;
+  text-align: center;
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.8), 0 0 30px var(--accent-cyan-glow);
+  z-index: 50;
+  display: none;
+  pointer-events: auto;
+  user-select: none;
+}
+
+.dynamic-text-banner.visible {
+  display: inline-block;
+}
+
+/* Animation Style: Slide Up */
+.intro-slide-up {
+  animation: animSlideUp 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+@keyframes animSlideUp {
+  from { transform: translate(-50%, 100px); opacity: 0; }
+  to { transform: translate(-50%, -50%); opacity: 1; }
+}
+
+/* Animation Style: Bounce Pop */
+.intro-bounce-pop {
+  animation: animBouncePop 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+@keyframes animBouncePop {
+  0% { transform: translate(-50%, -50%) scale(0.2); opacity: 0; }
+  60% { transform: translate(-50%, -50%) scale(1.15); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+
+/* Animation Style: Scale Spring */
+.intro-scale-spring {
+  animation: animScaleSpring 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+@keyframes animScaleSpring {
+  from { transform: translate(-50%, -50%) scale(0.5); opacity: 0; filter: blur(10px); }
+  to { transform: translate(-50%, -50%) scale(1); opacity: 1; filter: blur(0); }
+}
+
+/* Animation Style: Glitch Glow */
+.intro-glitch-glow {
+  animation: animGlitchGlow 0.8s ease-out forwards;
+}
+@keyframes animGlitchGlow {
+  0% { transform: translate(-50%, -50%) scale(0.9); opacity: 0; text-shadow: -5px 0 #ef4444, 5px 0 #06b6d4; }
+  50% { transform: translate(-50%, -50%) scale(1.05); opacity: 1; text-shadow: 5px 0 #ef4444, -5px 0 #06b6d4; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 1; text-shadow: 0 0 20px var(--accent-cyan); }
+}
