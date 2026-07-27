@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Master Stream Remote - MobileStream Studio</title>
-  <meta name="description" content="All-in-one passcode-secured smartphone remote control for HEVC MOV & WebM video overlays, Rive animations, PNG graphic overlays, clean overlay mode, and exclusive room pairing.">
-  <link rel="stylesheet" href="../styles/main.css?v=11.0">
+  <meta name="description" content="All-in-one passcode-secured smartphone remote control for WebM video overlays, Rive animations, PNG graphic overlays, clean overlay mode, and exclusive room pairing.">
+  <link rel="stylesheet" href="../styles/main.css?v=12.0">
   <style>
     body {
       padding-bottom: 5rem;
@@ -275,15 +275,15 @@
       </div>
     </div>
 
-    <!-- 4. HEVC MOV / WebM Overlay Videos & Rive Animations Inventory with Method Selector -->
+    <!-- 4. WebM Overlay Videos & Rive Animations Inventory with Method Selector -->
     <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.8rem; margin-bottom: 0.8rem; flex-wrap: wrap; gap: 0.5rem;">
-      <h3 class="section-title" style="margin: 0;">🎬 HEVC MOV & WebM Overlay Inventory</h3>
+      <h3 class="section-title" style="margin: 0;">🎬 WebM Overlay Inventory</h3>
       
       <!-- Video Transparency Mode Selector -->
       <div style="display: flex; align-items: center; gap: 0.4rem;">
-        <span style="font-size: 0.75rem; color: var(--text-muted);">Video Mode:</span>
+        <span style="font-size: 0.75rem; color: var(--text-muted);">WebM Mode:</span>
         <select id="webmModeSelect" style="padding: 0.4rem 0.7rem; border-radius: 8px; border: 1px solid var(--border-glass-bright); background: rgba(15,23,42,0.9); color: #00ffcc; font-family: var(--font-mono); font-size: 0.8rem; font-weight: 700;">
-          <option value="native" selected>✨ Native HTML5 (HEVC MOV / WebM Alpha)</option>
+          <option value="native" selected>✨ Native HTML5 (WebM Built-in Alpha)</option>
           <option value="screen">🎨 CSS Screen Blend</option>
           <option value="lumakey">🪄 Canvas Luma-Key (Strip Black)</option>
         </select>
@@ -291,25 +291,25 @@
     </div>
 
     <div class="media-grid">
-      <!-- Shark HEVC MOV -->
-      <button class="touch-btn btn-shark" onclick="playWebM('../assets/shark_hevc.mov')">
+      <!-- Shark WebM -->
+      <button class="touch-btn btn-shark" onclick="playWebM('../assets/shark_no_bg.webm')">
         <span class="icon">🦈</span>
-        <span>Shark HEVC MOV</span>
-        <span style="font-size: 0.75rem; opacity: 0.7; font-family: var(--font-mono);">shark_hevc.mov</span>
+        <span>Shark WebM</span>
+        <span style="font-size: 0.75rem; opacity: 0.7; font-family: var(--font-mono);">shark_no_bg.webm</span>
       </button>
 
-      <!-- Golden Star HEVC MOV -->
-      <button class="touch-btn btn-star" onclick="playWebM('../assets/stars_hevc.mov')">
+      <!-- Golden Star WebM -->
+      <button class="touch-btn btn-star" onclick="playWebM('../assets/goldenstarr.webm')">
         <span class="icon">⭐</span>
-        <span>Golden Stars MOV</span>
-        <span style="font-size: 0.75rem; opacity: 0.7; font-family: var(--font-mono);">stars_hevc.mov</span>
+        <span>Golden Star WebM</span>
+        <span style="font-size: 0.75rem; opacity: 0.7; font-family: var(--font-mono);">goldenstarr.webm</span>
       </button>
 
-      <!-- Dragon HEVC MOV -->
-      <button class="touch-btn btn-dragon" onclick="playWebM('../assets/dragon_hevc.mov')">
+      <!-- Dragon WebM -->
+      <button class="touch-btn btn-dragon" onclick="playWebM('../assets/dragon_no_bg.webm')">
         <span class="icon">🐉</span>
-        <span>Dragon HEVC MOV</span>
-        <span style="font-size: 0.75rem; opacity: 0.7; font-family: var(--font-mono);">dragon_hevc.mov</span>
+        <span>Dragon WebM</span>
+        <span style="font-size: 0.75rem; opacity: 0.7; font-family: var(--font-mono);">dragon_no_bg.webm</span>
       </button>
 
       <!-- Rive Animation -->
@@ -395,7 +395,7 @@
 
   </main>
 
-  <script src="../scripts/remote-control.js?v=11.0"></script>
+  <script src="../scripts/remote-control.js?v=12.0"></script>
   <script>
     let currentPin = '';
     let isCleanMode = false;
