@@ -3,9 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>Transparent Landscape Mobile Stream Overlay Source</title>
-  <meta name="description" content="100% Transparent 16:9 landscape mobile stream browser source overlay with WebSockets/PeerJS phone remote control for Rive animations, WebM videos, lower thirds, and live HUD telemetry.">
-  <link rel="stylesheet" href="../styles/main.css">
+  <meta name="description" content="100% Transparent 16:9 landscape mobile stream browser source overlay with WebSockets/PeerJS phone remote control for Rive animations, WebM videos, clean overlay mode, chroma key color customizer, and intro-animated custom text.">
+  <link rel="stylesheet" href="../styles/main.css?v=2.5">
   <!-- Rive Web Canvas JS Runtime -->
   <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
   <style>
@@ -115,7 +118,7 @@
       position: absolute;
       top: 3.2rem;
       right: 0;
-      width: 290px;
+      width: 300px;
       background: rgba(15, 23, 42, 0.95);
       backdrop-filter: blur(20px);
       border: 1px solid var(--border-glass-bright);
@@ -125,6 +128,8 @@
       display: none;
       flex-direction: column;
       gap: 0.8rem;
+      max-height: 85vh;
+      overflow-y: auto;
     }
 
     .menu-drawer.open {
@@ -200,6 +205,9 @@
     <video id="overlayVideo" playsinline webkit-playsinline></video>
   </div>
 
+  <!-- Dynamic Text Banner Overlay -->
+  <div class="dynamic-text-banner" id="dynamicTextOverlay">WELCOME TO THE STREAM!</div>
+
   <!-- Floating Menu Button (For Local Controls & Phone Remote Pairing) -->
   <div class="floating-menu-container">
     <button class="floating-menu-btn" id="menuToggleBtn">
@@ -214,22 +222,30 @@
       </div>
 
       <div style="font-size: 0.75rem; color: var(--text-muted);">
-        Open <strong>/pages/media-remote.html</strong> or <strong>remote.html</strong> on your phone to trigger live media remotely!
+        Open <strong>/pages/remote.html</strong> on your phone to trigger live media remotely!
       </div>
 
+      <!-- Quick Action Controls -->
       <div style="display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.4rem;">
+        <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem; border-color: rgba(99,102,241,0.5);" onclick="toggleCleanOverlay()">🧹 Toggle Clean Overlay Mode</button>
+        <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="playWebM('../assets/shark_no_bg.webm')">🦈 Play Shark (shark_no_bg.webm)</button>
+        <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="playWebM('../assets/goldenstarr.webm')">⭐ Play Golden Star (goldenstarr.webm)</button>
+        <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="playWebM('../assets/dragon_no_bg.webm')">🐉 Play Dragon (dragon_no_bg.webm)</button>
         <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="playRive('../assets/animation.riv')">🎨 Trigger Rive Animation</button>
-        <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="playWebM('../assets/video1.webm')">🎬 Trigger WebM Video #1</button>
-        <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="playWebM('../assets/video2.webm')">🎥 Trigger WebM Video #2</button>
         <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="toggleGraphic('lower_third')">🏷️ Toggle Lower Third</button>
-        <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="toggleGraphic('face_grid')">🎯 Toggle Face Framing Grid</button>
         <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="triggerAlert()">🔔 Trigger Subscriber Alert</button>
         <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem; border-color: rgba(239,68,68,0.4); color: #f87171;" onclick="stopAllMedia()">⏹️ Stop All Media</button>
       </div>
 
-      <div style="border-top: 1px solid var(--border-glass); pt: 0.6rem; margin-top: 0.4rem; display: flex; gap: 0.3rem;">
-        <button class="btn btn-glass" style="padding: 0.3rem 0.5rem; font-size: 0.7rem; flex: 1;" onclick="setBg('transparent')">💧 Transparent</button>
-        <button class="btn btn-glass" style="padding: 0.3rem 0.5rem; font-size: 0.7rem; flex: 1;" onclick="setBg('green')">🟢 Green Screen</button>
+      <!-- Chroma Key Color Switcher -->
+      <div style="border-top: 1px solid var(--border-glass); pt: 0.6rem; margin-top: 0.4rem;">
+        <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.3rem;">Chroma Key Green Screen Color:</div>
+        <div style="display: flex; gap: 0.3rem;">
+          <button class="btn btn-glass" style="padding: 0.3rem 0.4rem; font-size: 0.7rem; flex: 1;" onclick="setChromaBg('#00ff00')">🟢 Green</button>
+          <button class="btn btn-glass" style="padding: 0.3rem 0.4rem; font-size: 0.7rem; flex: 1;" onclick="setChromaBg('#00ff66')">🟢 Lime</button>
+          <button class="btn btn-glass" style="padding: 0.3rem 0.4rem; font-size: 0.7rem; flex: 1;" onclick="setChromaBg('#0000ff')">🔵 Blue</button>
+          <button class="btn btn-glass" style="padding: 0.3rem 0.4rem; font-size: 0.7rem; flex: 1;" onclick="setChromaBg('transparent')">💧 Clear</button>
+        </div>
       </div>
     </div>
   </div>
@@ -294,13 +310,14 @@
     </div>
   </div>
 
-  <script src="../scripts/remote-control.js"></script>
+  <script src="../scripts/remote-control.js?v=2.5"></script>
   <script>
     // Menu Drawer Toggle
     const menuBtn = document.getElementById('menuToggleBtn');
     const menuDrawer = document.getElementById('menuDrawer');
     const menuRoomId = document.getElementById('menuRoomId');
     let currentRiveInstance = null;
+    let textTimeout = null;
 
     menuBtn.addEventListener('click', () => {
       menuDrawer.classList.toggle('open');
@@ -316,14 +333,22 @@
       const { action, payload } = event;
 
       switch (action) {
+        case 'toggle_clean_mode':
+          setCleanMode(payload.clean);
+          break;
+        case 'set_chroma_color':
+          setChromaBg(payload.color);
+          break;
+        case 'show_custom_text':
+          showCustomText(payload.text, payload.animStyle, payload.color);
+          break;
+        case 'play_video':
+        case 'play_video1':
+        case 'play_video2':
+          playWebM(payload.src || '../assets/shark_no_bg.webm');
+          break;
         case 'play_rive':
           playRive(payload.src || '../assets/animation.riv');
-          break;
-        case 'play_video1':
-          playWebM(payload.src || '../assets/video1.webm');
-          break;
-        case 'play_video2':
-          playWebM(payload.src || '../assets/video2.webm');
           break;
         case 'stop_media':
           stopAllMedia();
@@ -344,7 +369,7 @@
           toggleGraphic('meme', payload.active);
           break;
         case 'toggle_green_screen':
-          setBg(payload.active ? 'green' : 'transparent');
+          setChromaBg(payload.active ? '#00ff00' : 'transparent');
           break;
         case 'trigger_alert':
           triggerAlert(payload.title, payload.subtitle);
@@ -354,6 +379,37 @@
           break;
       }
     });
+
+    // Clean Overlay Mode Helper
+    function setCleanMode(isClean) {
+      if (isClean !== undefined) {
+        document.body.classList.toggle('clean-overlay-mode', isClean);
+      } else {
+        document.body.classList.toggle('clean-overlay-mode');
+      }
+    }
+
+    function toggleCleanOverlay() {
+      setCleanMode();
+    }
+
+    // Dynamic Text Banner Player
+    function showCustomText(text = 'LIVE STREAM', animStyle = 'intro-bounce-pop', color = '#ffffff') {
+      const banner = document.getElementById('dynamicTextOverlay');
+      if (!banner) return;
+
+      banner.className = 'dynamic-text-banner visible';
+      banner.textContent = text;
+      banner.style.color = color;
+
+      // Add animation class
+      banner.classList.add(animStyle || 'intro-bounce-pop');
+
+      if (textTimeout) clearTimeout(textTimeout);
+      textTimeout = setTimeout(() => {
+        banner.className = 'dynamic-text-banner';
+      }, 6000);
+    }
 
     // Rive Animation Player Logic
     function playRive(src = '../assets/animation.riv') {
@@ -385,7 +441,7 @@
     }
 
     // WebM Video Player Logic
-    function playWebM(src = '../assets/video1.webm') {
+    function playWebM(src = '../assets/shark_no_bg.webm') {
       const video = document.getElementById('overlayVideo');
       if (!video) return;
 
@@ -408,12 +464,14 @@
     function stopAllMedia() {
       const canvas = document.getElementById('riveCanvas');
       const video = document.getElementById('overlayVideo');
+      const textBanner = document.getElementById('dynamicTextOverlay');
 
       if (canvas) canvas.style.display = 'none';
       if (video) {
         video.pause();
         video.style.display = 'none';
       }
+      if (textBanner) textBanner.className = 'dynamic-text-banner';
       if (currentRiveInstance) {
         currentRiveInstance.cleanup();
         currentRiveInstance = null;
@@ -469,18 +527,19 @@
       stopAllMedia();
     }
 
-    function setBg(mode) {
+    function setChromaBg(color) {
       const body = document.body;
       const html = document.documentElement;
+
       body.className = '';
       html.className = '';
 
-      if (mode === 'transparent') {
+      if (color === 'transparent') {
         body.classList.add('transparent-mode');
         html.classList.add('transparent-mode');
-      } else if (mode === 'green') {
-        body.classList.add('chroma-green-mode');
-        html.classList.add('chroma-green-mode');
+        body.style.backgroundColor = 'transparent';
+      } else {
+        body.style.backgroundColor = color;
       }
     }
 
