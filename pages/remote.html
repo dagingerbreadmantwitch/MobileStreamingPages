@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Mobile Remote Control - MobileStream Studio</title>
-  <meta name="description" content="Touch-optimized mobile stream remote control for triggering live overlays, lower third graphics, alerts, and green screen modes.">
+  <title>Master Stream Remote - MobileStream Studio</title>
+  <meta name="description" content="All-in-one smartphone remote control for WebM video overlays, Rive animations, clean overlay mode, chroma key green screen colors, custom text intro animations, and lower third graphics over WebSockets and WebRTC.">
   <link rel="stylesheet" href="../styles/main.css">
   <style>
     body {
-      padding-bottom: 3rem;
+      padding-bottom: 5rem;
       touch-action: manipulation;
     }
 
@@ -37,7 +37,14 @@
       display: grid;
       grid-template-columns: repeat(2, 1fr);
       gap: 1rem;
-      margin-bottom: 2rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .media-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
     }
 
     .touch-btn {
@@ -66,13 +73,20 @@
     }
 
     .touch-btn .icon {
-      font-size: 2rem;
+      font-size: 2.2rem;
     }
 
     .touch-btn.active {
       border-color: var(--accent-cyan);
       box-shadow: 0 0 20px var(--accent-cyan-glow);
       background: rgba(6, 182, 212, 0.15);
+    }
+
+    .touch-btn-clean {
+      grid-column: span 2;
+      border-color: rgba(99, 102, 241, 0.6);
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(139, 92, 246, 0.2) 100%);
+      color: #a5b4fc;
     }
 
     .touch-btn-alert {
@@ -83,8 +97,53 @@
       box-shadow: var(--shadow-live);
     }
 
-    .touch-btn-alert:active {
-      filter: brightness(1.2);
+    .btn-shark {
+      border-color: rgba(6, 182, 212, 0.5);
+      background: linear-gradient(135deg, rgba(6, 182, 212, 0.15) 0%, rgba(59, 130, 246, 0.15) 100%);
+    }
+
+    .btn-star {
+      border-color: rgba(245, 158, 11, 0.5);
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(234, 179, 8, 0.15) 100%);
+    }
+
+    .btn-dragon {
+      border-color: rgba(236, 72, 153, 0.5);
+      background: linear-gradient(135deg, rgba(236, 72, 153, 0.15) 0%, rgba(168, 85, 247, 0.15) 100%);
+    }
+
+    .btn-rive {
+      border-color: rgba(99, 102, 241, 0.5);
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(139, 92, 246, 0.15) 100%);
+    }
+
+    .btn-stop {
+      border-color: rgba(239, 68, 68, 0.5);
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+    }
+
+    .color-swatch-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: var(--radius-md);
+      border: 2px solid var(--border-glass-bright);
+      cursor: pointer;
+      transition: var(--transition-bounce);
+    }
+
+    .color-swatch-btn:hover {
+      transform: scale(1.1);
+      border-color: #fff;
+    }
+
+    .section-title {
+      font-size: 1.1rem;
+      margin-top: 1.8rem;
+      margin-bottom: 0.8rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
     }
 
     .status-indicator {
@@ -117,10 +176,10 @@
   <header class="remote-header">
     <div class="container" style="display: flex; justify-content: space-between; align-items: center; padding: 0;">
       <div style="display: flex; align-items: center; gap: 0.6rem;">
-        <span style="font-size: 1.4rem;">📱</span>
+        <span style="font-size: 1.6rem;">📱</span>
         <div>
-          <h2 style="font-size: 1.1rem; margin: 0;">Mobile Stream Controller</h2>
-          <div style="font-size: 0.75rem; color: var(--text-muted);">Real-Time OBS & Web Remote</div>
+          <h2 style="font-size: 1.1rem; margin: 0;">Master Stream Remote</h2>
+          <div style="font-size: 0.75rem; color: var(--text-muted);">All-In-One OBS Stream Controller</div>
         </div>
       </div>
 
@@ -132,7 +191,8 @@
   </header>
 
   <main class="container" style="margin-top: 1.5rem;">
-    <!-- Room Code Pairing Card -->
+
+    <!-- 1. Room Code Pairing Card -->
     <div class="room-badge-card">
       <div>
         <div style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono); font-weight: 600;">STREAM ROOM ID</div>
@@ -145,65 +205,158 @@
       </div>
     </div>
 
-    <!-- Quick Action Touch Grid -->
-    <div class="remote-grid">
-      
-      <!-- Big Alert Trigger -->
-      <button class="touch-btn touch-btn-alert" id="btnTriggerAlert">
-        <span class="icon">🔔</span>
-        <span>TRIGGER LIVE ALERT</span>
+    <!-- 2. Canvas Display Mode (Clean vs HUD) -->
+    <h3 class="section-title">🧹 Stream Canvas Mode</h3>
+    <div class="glass-card" style="margin-bottom: 1.5rem;">
+      <div style="display: flex; gap: 0.8rem; flex-wrap: wrap;">
+        <button class="btn touch-btn touch-btn-clean" id="btnToggleClean" style="flex: 1; padding: 1rem;">
+          <span style="font-size: 1.4rem;">🧹</span>
+          <span>Clean Overlay Mode (Hide HUD & Stats)</span>
+        </button>
+
+        <button class="btn btn-glass" id="btnShowHud" style="flex: 1; min-width: 180px; padding: 1rem;">
+          <span style="font-size: 1.4rem;">📊</span>
+          <span>Show HUD & Telemetry Stats</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 3. Chroma Key Green Screen Color Customizer -->
+    <h3 class="section-title">🎨 Chroma Key Green Screen Color</h3>
+    <div class="glass-card" style="margin-bottom: 1.5rem;">
+      <div style="display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap;">
+        <button class="color-swatch-btn" style="background-color: #00ff00;" title="Standard Green" onclick="setChromaColor('#00ff00')"></button>
+        <button class="color-swatch-btn" style="background-color: #00ff66;" title="Lime Green" onclick="setChromaColor('#00ff66')"></button>
+        <button class="color-swatch-btn" style="background-color: #0000ff;" title="Chroma Blue" onclick="setChromaColor('#0000ff')"></button>
+        <button class="color-swatch-btn" style="background-color: #ff00ff;" title="Magenta" onclick="setChromaColor('#ff00ff')"></button>
+        <button class="btn btn-glass" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;" onclick="setChromaColor('transparent')">💧 100% Transparent</button>
+
+        <div style="display: flex; align-items: center; gap: 0.4rem; margin-left: auto;">
+          <input type="color" id="customColorInput" value="#00ff00" style="width: 40px; height: 40px; border: none; background: none; cursor: pointer;">
+          <button class="btn btn-glass" id="btnCustomColor" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">Apply Color</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. WebM Overlay Videos & Rive Animations Inventory -->
+    <h3 class="section-title">🎬 Uploaded Media Overlay Inventory</h3>
+    <div class="media-grid">
+      <!-- Shark WebM -->
+      <button class="touch-btn btn-shark" onclick="playWebM('../assets/shark_no_bg.webm')">
+        <span class="icon">🦈</span>
+        <span>Shark Overlay</span>
+        <span style="font-size: 0.75rem; opacity: 0.7; font-family: var(--font-mono);">shark_no_bg.webm</span>
       </button>
 
-      <!-- Lower Third Banner Toggle -->
+      <!-- Golden Star WebM -->
+      <button class="touch-btn btn-star" onclick="playWebM('../assets/goldenstarr.webm')">
+        <span class="icon">⭐</span>
+        <span>Golden Star</span>
+        <span style="font-size: 0.75rem; opacity: 0.7; font-family: var(--font-mono);">goldenstarr.webm</span>
+      </button>
+
+      <!-- Dragon WebM -->
+      <button class="touch-btn btn-dragon" onclick="playWebM('../assets/dragon_no_bg.webm')">
+        <span class="icon">🐉</span>
+        <span>Dragon Overlay</span>
+        <span style="font-size: 0.75rem; opacity: 0.7; font-family: var(--font-mono);">dragon_no_bg.webm</span>
+      </button>
+
+      <!-- Rive Animation -->
+      <button class="touch-btn btn-rive" onclick="playRive('../assets/animation.riv')">
+        <span class="icon">🎨</span>
+        <span>Rive Animation</span>
+        <span style="font-size: 0.75rem; opacity: 0.7; font-family: var(--font-mono);">animation.riv</span>
+      </button>
+    </div>
+
+    <!-- Dynamic WebM Selector & Custom Video Path -->
+    <div class="glass-card" style="margin-bottom: 1.8rem;">
+      <h3 style="font-size: 1rem; margin-bottom: 0.8rem;">Dynamic WebM Selector & Custom Video</h3>
+      <div style="display: flex; gap: 0.8rem; flex-wrap: wrap; margin-bottom: 1rem;">
+        <select id="webmSelector" style="flex: 1; min-width: 220px; padding: 0.6rem 0.9rem; border-radius: 8px; border: 1px solid var(--border-glass-bright); background: rgba(15,23,42,0.9); color: #fff; font-family: var(--font-mono); font-size: 0.85rem;">
+          <option value="../assets/shark_no_bg.webm">🦈 Shark Overlay (shark_no_bg.webm)</option>
+          <option value="../assets/goldenstarr.webm">⭐ Golden Star (goldenstarr.webm)</option>
+          <option value="../assets/dragon_no_bg.webm">🐉 Dragon Overlay (dragon_no_bg.webm)</option>
+        </select>
+        <button class="btn btn-primary" id="btnPlaySelectedWebM" style="padding: 0.6rem 1.2rem;">Play Selected WebM</button>
+      </div>
+
+      <div style="display: flex; gap: 0.6rem;">
+        <input type="text" id="customVideoPath" placeholder="Custom file/URL (e.g. ../assets/custom.webm)" style="flex: 1; padding: 0.6rem 0.9rem; border-radius: 8px; border: 1px solid var(--border-glass); background: rgba(0,0,0,0.4); color: #fff; font-family: var(--font-mono); font-size: 0.85rem;">
+        <button class="btn btn-glass" id="btnPlayCustomVideo">Play Custom</button>
+      </div>
+    </div>
+
+    <!-- 5. Dynamic Custom Text & Intro Animation Picker -->
+    <h3 class="section-title">✨ Dynamic Text Overlay & Intro Animations</h3>
+    <div class="glass-card" style="margin-bottom: 1.8rem;">
+      <div style="display: flex; flex-direction: column; gap: 0.8rem;">
+        <input type="text" id="customTextInput" placeholder="Enter stream banner text (e.g. 🔥 SUB GOAL 50/100!)" style="width: 100%; padding: 0.7rem 1rem; border-radius: 8px; border: 1px solid var(--border-glass-bright); background: rgba(0,0,0,0.4); color: #fff; font-size: 1rem; font-family: var(--font-heading);">
+        
+        <div style="display: flex; gap: 0.8rem; flex-wrap: wrap;">
+          <select id="animStyleSelect" style="flex: 1; min-width: 200px; padding: 0.6rem 0.9rem; border-radius: 8px; border: 1px solid var(--border-glass); background: rgba(15,23,42,0.9); color: #fff; font-family: var(--font-mono); font-size: 0.85rem;">
+            <option value="intro-bounce-pop">🎉 Bounce Pop Entrance</option>
+            <option value="intro-slide-up">⬆️ Slide Up From Bottom</option>
+            <option value="intro-scale-spring">✨ Scale Spring Pop</option>
+            <option value="intro-glitch-glow">⚡ Glitch & Cyber Glow</option>
+          </select>
+
+          <button class="btn btn-primary" id="btnPushText" style="padding: 0.6rem 1.4rem;">Push Text Overlay</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6. Stream Overlays, Lower Thirds & Live Alerts -->
+    <h3 class="section-title">🏷️ Overlays, Lower Thirds & Live Alerts</h3>
+    <div class="remote-grid">
+      <!-- Trigger Live Alert -->
+      <button class="touch-btn touch-btn-alert" id="btnTriggerAlert">
+        <span class="icon">🔔</span>
+        <span>TRIGGER LIVE SUBSCRIBER ALERT</span>
+      </button>
+
+      <!-- Lower Third Toggle -->
       <button class="touch-btn" id="btnLowerThird">
         <span class="icon">🏷️</span>
         <span>Lower Third Banner</span>
       </button>
 
-      <!-- Face Mesh / Subject Grid -->
+      <!-- Face Framing Grid -->
       <button class="touch-btn" id="btnFaceGrid">
         <span class="icon">🎯</span>
         <span>Face Framing Grid</span>
       </button>
 
-      <!-- Telemetry Stats HUD -->
-      <button class="touch-btn" id="btnTelemetry">
-        <span class="icon">📊</span>
-        <span>Telemetry Stats HUD</span>
-      </button>
-
-      <!-- Forehead Meme / Graphic -->
+      <!-- Forehead Meme AR -->
       <button class="touch-btn" id="btnForeheadMeme">
         <span class="icon">🎭</span>
         <span>Forehead Meme AR</span>
       </button>
 
-      <!-- Green Screen Chroma Key -->
-      <button class="touch-btn" id="btnGreenScreen">
-        <span class="icon">🟢</span>
-        <span>Green Screen Mode</span>
-      </button>
-
-      <!-- Clear All Overlays -->
-      <button class="touch-btn" id="btnClearAll" style="border-color: rgba(239, 68, 68, 0.4); color: #f87171;">
-        <span class="icon">🧹</span>
-        <span>Hide All Overlays</span>
+      <!-- Global Stop & Reset -->
+      <button class="touch-btn btn-stop" id="btnClearAll" style="grid-column: span 2; padding: 1.2rem;">
+        <span class="icon">⏹️</span>
+        <span>STOP ALL MEDIA & CLEAR OVERLAYS</span>
       </button>
     </div>
 
-    <!-- Quick Custom Lower Third Form -->
+    <!-- Custom Lower Third Input Form -->
     <div class="glass-card" style="margin-bottom: 2rem;">
-      <h3 style="font-size: 1rem; margin-bottom: 0.8rem;">Custom Lower Third Graphic</h3>
+      <h3 style="font-size: 1rem; margin-bottom: 0.8rem;">Custom Lower Third Host Name</h3>
       <div style="display: flex; flex-direction: column; gap: 0.8rem;">
-        <input type="text" id="customTitle" placeholder="Host / Streamer Name (e.g. @AlexStreamer)" style="width: 100%; padding: 0.6rem 0.9rem; border-radius: 8px; border: 1px solid var(--border-glass); background: rgba(0,0,0,0.4); color: #fff;">
+        <input type="text" id="customTitle" placeholder="Streamer / Host Name (e.g. @AlexStreamer)" style="width: 100%; padding: 0.6rem 0.9rem; border-radius: 8px; border: 1px solid var(--border-glass); background: rgba(0,0,0,0.4); color: #fff;">
         <input type="text" id="customSubtitle" placeholder="Subtitle / Topic (e.g. 4K Mobile IRL Stream)" style="width: 100%; padding: 0.6rem 0.9rem; border-radius: 8px; border: 1px solid var(--border-glass); background: rgba(0,0,0,0.4); color: #fff;">
         <button class="btn btn-glass" id="btnUpdateLowerThird" style="width: 100%;">Push Custom Lower Third</button>
       </div>
     </div>
+
   </main>
 
   <script src="../scripts/remote-control.js"></script>
   <script>
+    let isCleanMode = false;
+
     document.addEventListener('DOMContentLoaded', () => {
       const roomDisplay = document.getElementById('displayRoomId');
       const inputRoom = document.getElementById('inputRoomId');
@@ -230,7 +383,7 @@
         });
       });
 
-      // Quick Action Trigger Helpers
+      // Quick Toggle Helpers
       function setupToggle(btnId, actionName) {
         const btn = document.getElementById(btnId);
         if (!btn) return;
@@ -242,11 +395,47 @@
 
       setupToggle('btnLowerThird', 'toggle_lower_third');
       setupToggle('btnFaceGrid', 'toggle_face_grid');
-      setupToggle('btnTelemetry', 'toggle_telemetry');
       setupToggle('btnForeheadMeme', 'toggle_meme');
-      setupToggle('btnGreenScreen', 'toggle_green_screen');
 
-      // Trigger Alert
+      // Clean Overlay Mode Trigger
+      document.getElementById('btnToggleClean')?.addEventListener('click', () => {
+        isCleanMode = !isCleanMode;
+        document.getElementById('btnToggleClean')?.classList.toggle('active', isCleanMode);
+        window.remoteEngine.send('toggle_clean_mode', { clean: isCleanMode });
+      });
+
+      document.getElementById('btnShowHud')?.addEventListener('click', () => {
+        isCleanMode = false;
+        document.getElementById('btnToggleClean')?.classList.remove('active');
+        window.remoteEngine.send('toggle_clean_mode', { clean: false });
+      });
+
+      // Custom Chroma Color Trigger
+      document.getElementById('btnCustomColor')?.addEventListener('click', () => {
+        const color = document.getElementById('customColorInput').value;
+        setChromaColor(color);
+      });
+
+      // Play Selected WebM
+      document.getElementById('btnPlaySelectedWebM')?.addEventListener('click', () => {
+        const src = document.getElementById('webmSelector').value;
+        playWebM(src);
+      });
+
+      // Play Custom Path / URL
+      document.getElementById('btnPlayCustomVideo')?.addEventListener('click', () => {
+        const src = document.getElementById('customVideoPath').value.trim();
+        if (src) playWebM(src);
+      });
+
+      // Push Dynamic Text Overlay
+      document.getElementById('btnPushText')?.addEventListener('click', () => {
+        const text = document.getElementById('customTextInput').value.trim() || 'WELCOME TO THE STREAM!';
+        const animStyle = document.getElementById('animStyleSelect').value || 'intro-bounce-pop';
+        window.remoteEngine.send('show_custom_text', { text, animStyle });
+      });
+
+      // Trigger Subscriber Alert
       document.getElementById('btnTriggerAlert')?.addEventListener('click', () => {
         window.remoteEngine.send('trigger_alert', {
           title: 'NEW SUBSCRIBER!',
@@ -254,7 +443,7 @@
         });
       });
 
-      // Hide All Overlays
+      // Hide & Clear All
       document.getElementById('btnClearAll')?.addEventListener('click', () => {
         document.querySelectorAll('.touch-btn').forEach(b => b.classList.remove('active'));
         window.remoteEngine.send('clear_all');
@@ -268,6 +457,19 @@
         document.getElementById('btnLowerThird')?.classList.add('active');
       });
     });
+
+    // Helper Dispatch Functions
+    function setChromaColor(color) {
+      window.remoteEngine.send('set_chroma_color', { color });
+    }
+
+    function playWebM(src) {
+      window.remoteEngine.send('play_video', { src });
+    }
+
+    function playRive(src = '../assets/animation.riv') {
+      window.remoteEngine.send('play_rive', { src });
+    }
   </script>
 </body>
 </html>
