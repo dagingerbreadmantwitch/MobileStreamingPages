@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Master Stream Remote - MobileStream Studio</title>
   <meta name="description" content="All-in-one passcode-secured smartphone remote control for WebM video overlays, Rive animations, PNG graphic overlays, clean overlay mode, and exclusive room pairing.">
-  <link rel="stylesheet" href="../styles/main.css?v=5.0">
+  <link rel="stylesheet" href="../styles/main.css?v=7.0">
   <style>
     body {
       padding-bottom: 5rem;
@@ -177,7 +177,7 @@
     <div class="passcode-modal-card">
       <div style="font-size: 2.8rem; margin-bottom: 0.4rem;">🔐</div>
       <h2 style="font-size: 1.3rem; margin-bottom: 0.2rem;">Stream Remote Locked</h2>
-      <div style="font-size: 0.8rem; color: var(--text-muted);">Enter Security Passcode PIN (Default: <strong>07357</strong>)</div>
+      <div style="font-size: 0.85rem; color: var(--text-muted);">Enter Security PIN to unlock controls</div>
 
       <div class="pin-display-dots" id="pinDisplayDots">
         <div class="pin-dot"></div>
@@ -382,7 +382,7 @@
 
   </main>
 
-  <script src="../scripts/remote-control.js?v=5.0"></script>
+  <script src="../scripts/remote-control.js?v=7.0"></script>
   <script>
     let currentPin = '';
     let isCleanMode = false;
@@ -486,7 +486,7 @@
       });
     });
 
-    // Passcode Security Keypad Functions (PIN: 07357)
+    // Encrypted Passcode Security Keypad Functions
     function pressPin(digit) {
       if (currentPin.length < 5) {
         currentPin += digit;
@@ -510,8 +510,9 @@
       });
     }
 
-    function submitPin() {
-      if (window.remoteEngine.validatePasscode(currentPin)) {
+    async function submitPin() {
+      const isValid = await window.remoteEngine.validatePasscode(currentPin);
+      if (isValid) {
         document.getElementById('passcodeModal').style.display = 'none';
         document.getElementById('pinErrorMsg').textContent = '';
       } else {

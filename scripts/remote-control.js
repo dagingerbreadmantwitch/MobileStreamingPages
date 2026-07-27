@@ -1,11 +1,12 @@
 /**
  * MobileStream Studio - Remote Control Communication Engine
  * Supports BroadcastChannel for local tab sync and PeerJS (WebRTC) for remote phone sync across devices.
- * Includes Security Passcode validation & Exclusive Session Handshake to prevent interference.
+ * Includes Encrypted Security Passcode (SHA-256 Hash) & Exclusive Session Handshake.
  */
 
 const MSP_CHANNEL_NAME = 'msp_overlay_channel';
-const DEFAULT_PASSCODE = '07357';
+// SHA-256 Hash of security PIN - Prevents plaintext exposure when inspecting code
+const PASSCODE_SHA256_HASH = 'bd9d557d0e6b68cb3a53999e0cfd3a6371b4cddf8342140db6b8a500c64daced';
 
 class RemoteControlEngine {
   constructor() {
@@ -44,10 +45,20 @@ class RemoteControlEngine {
     return token;
   }
 
-  // Passcode Security Validation (Default PIN: 07357 or custom setting)
-  validatePasscode(pin) {
-    const savedPin = localStorage.getItem('msp_passcode_pin') || DEFAULT_PASSCODE;
-    if (pin === savedPin) {
+  // Cryptographic SHA-256 Hash helper
+  async hashPin(pin) {
+    const msgUint8 = new TextEncoder().encode(pin);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  // Encrypted Security Passcode Validation (SHA-256 Hash Verification)
+  async validatePasscode(pin) {
+    const inputHash = await this.hashPin(pin);
+    const savedHash = localStorage.getItem('msp_passcode_hash') || PASSCODE_SHA256_HASH;
+
+    if (inputHash === savedHash) {
       this.isUnlocked = true;
       sessionStorage.setItem('msp_remote_unlocked', 'true');
       return true;
@@ -62,10 +73,11 @@ class RemoteControlEngine {
     return isUnlocked;
   }
 
-  // Set new passcode
-  setPasscode(newPin) {
+  // Set new passcode with SHA-256 encryption
+  async setPasscode(newPin) {
     if (newPin && newPin.length >= 4) {
-      localStorage.setItem('msp_passcode_pin', newPin);
+      const newHash = await this.hashPin(newPin);
+      localStorage.setItem('msp_passcode_hash', newHash);
       return true;
     }
     return false;
