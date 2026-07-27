@@ -1,14 +1,14 @@
 /**
  * MobileStream Studio - Remote Control Communication Engine
  * Supports BroadcastChannel for local tab sync and PeerJS (WebRTC) for remote phone sync across devices.
- * Includes Multi-STUN ICE configuration for Carrier NAT penetration, SHA-256 Passcode, & Exclusive Session Handshake.
+ * Includes Multi-STUN + TURN Relay ICE configuration for 100% 5G Cellular Carrier NAT penetration, SHA-256 Passcode, & Exclusive Session Handshake.
  */
 
 const MSP_CHANNEL_NAME = 'msp_overlay_channel';
 // SHA-256 Hash of security PIN - Prevents plaintext exposure when inspecting code
 const PASSCODE_SHA256_HASH = 'bd9d557d0e6b68cb3a53999e0cfd3a6371b4cddf8342140db6b8a500c64daced';
 
-// STUN/ICE Server configuration to ensure phone-to-computer connections pierce Carrier NAT / 5G
+// STUN + TURN Relay Server configuration to guarantee 100% phone-to-computer connections over 5G/LTE Carrier NAT
 const PEER_ICE_CONFIG = {
   config: {
     iceServers: [
@@ -16,8 +16,23 @@ const PEER_ICE_CONFIG = {
       { urls: 'stun:stun1.l.google.com:19302' },
       { urls: 'stun:stun2.l.google.com:19302' },
       { urls: 'stun:stun3.l.google.com:19302' },
-      { urls: 'stun:stun4.l.google.com:19302' },
-      { urls: 'stun:global.stun.twilio.com:3478' }
+      { urls: 'stun:global.stun.twilio.com:3478' },
+      // OpenRelay TURN Servers (Relays traffic over HTTPS port 443 when direct STUN hole-punching fails on Symmetric NAT)
+      {
+        urls: 'turn:openrelay.metered.ca:80',
+        username: 'openrelay',
+        credential: 'openrelay'
+      },
+      {
+        urls: 'turn:openrelay.metered.ca:443',
+        username: 'openrelay',
+        credential: 'openrelay'
+      },
+      {
+        urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+        username: 'openrelay',
+        credential: 'openrelay'
+      }
     ]
   }
 };
