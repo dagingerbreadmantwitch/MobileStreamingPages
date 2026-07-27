@@ -7,8 +7,8 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>Transparent Landscape Mobile Stream Overlay Source</title>
-  <meta name="description" content="100% Transparent 16:9 landscape mobile stream browser source overlay with WebSockets/PeerJS phone remote control for Rive animations, WebM transparent videos, PNG overlays, clean overlay mode, and passcode security handshake.">
-  <link rel="stylesheet" href="../styles/main.css?v=10.0">
+  <meta name="description" content="100% Transparent 16:9 landscape mobile stream browser source overlay with WebSockets/PeerJS phone remote control for Rive animations, HEVC MOV transparent videos, PNG overlays, clean overlay mode, and passcode security handshake.">
+  <link rel="stylesheet" href="../styles/main.css?v=11.0">
   <!-- Rive Web Canvas JS Runtime -->
   <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
   <style>
@@ -41,7 +41,7 @@
       pointer-events: auto;
     }
 
-    /* Media Overlay Layers (Rive Canvas, WebM Video & PNG Overlay) */
+    /* Media Overlay Layers (Rive Canvas, Video & PNG Overlay) */
     .media-overlay-container {
       position: fixed;
       inset: 0;
@@ -61,7 +61,7 @@
       background: transparent !important;
     }
 
-    /* WebM Transparent Video Player */
+    /* HEVC MOV & WebM Transparent Video Player */
     #overlayVideo {
       width: 100%;
       height: 100%;
@@ -212,7 +212,7 @@
 </head>
 <body class="transparent-mode" id="overlayBody">
 
-  <!-- Fullscreen Media Overlay Layers (Rive Canvas, WebM Video, Alpha Canvas & PNG Overlay) -->
+  <!-- Fullscreen Media Overlay Layers (Rive Canvas, Video, Alpha Canvas & PNG Overlay) -->
   <div class="media-overlay-container">
     <canvas id="riveCanvas"></canvas>
     <video id="overlayVideo" playsinline webkit-playsinline muted crossorigin="anonymous"></video>
@@ -244,9 +244,9 @@
       <!-- Quick Action Controls -->
       <div style="display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.4rem;">
         <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem; border-color: rgba(99,102,241,0.5);" onclick="toggleCleanOverlay()">🧹 Toggle Clean Overlay Mode</button>
-        <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="playWebM('../assets/shark_no_bg.webm', 'native')">🦈 Play Shark (shark_no_bg.webm)</button>
-        <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="playWebM('../assets/goldenstarr.webm', 'native')">⭐ Play Golden Star (goldenstarr.webm)</button>
-        <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="playWebM('../assets/dragon_no_bg.webm', 'native')">🐉 Play Dragon (dragon_no_bg.webm)</button>
+        <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="playWebM('../assets/shark_hevc.mov', 'native')">🦈 Play Shark (shark_hevc.mov)</button>
+        <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="playWebM('../assets/stars_hevc.mov', 'native')">⭐ Play Golden Stars (stars_hevc.mov)</button>
+        <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="playWebM('../assets/dragon_hevc.mov', 'native')">🐉 Play Dragon (dragon_hevc.mov)</button>
         <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="playRive('../assets/animation.riv')">🎨 Trigger Rive Animation</button>
         <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="toggleGraphic('lower_third')">🏷️ Toggle Lower Third</button>
         <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="triggerAlert()">🔔 Trigger Subscriber Alert</button>
@@ -326,7 +326,7 @@
     </div>
   </div>
 
-  <script src="../scripts/remote-control.js?v=10.0"></script>
+  <script src="../scripts/remote-control.js?v=11.0"></script>
   <script>
     // Menu Drawer Toggle
     const menuBtn = document.getElementById('menuToggleBtn');
@@ -372,7 +372,7 @@
         case 'play_video':
         case 'play_video1':
         case 'play_video2':
-          playWebM(payload.src || '../assets/shark_no_bg.webm', payload.playbackMode || 'native');
+          playWebM(payload.src || '../assets/shark_hevc.mov', payload.playbackMode || 'native');
           break;
         case 'play_rive':
           playRive(payload.src || '../assets/animation.riv');
@@ -514,8 +514,8 @@
       }
     }
 
-    // WebM Video Player Logic Supporting 3 Selectable Modes (Native Alpha, CSS Screen Blend, Canvas Luma Key)
-    function playWebM(src = '../assets/shark_no_bg.webm', playbackMode = 'native') {
+    // HEVC MOV / WebM Video Player Logic Supporting 3 Selectable Modes (Native Alpha, CSS Screen Blend, Canvas Luma Key)
+    function playWebM(src = '../assets/shark_hevc.mov', playbackMode = 'native') {
       const video = document.getElementById('overlayVideo');
       const canvas = document.getElementById('alphaCanvas');
       if (!video || !canvas) return;
@@ -565,7 +565,7 @@
           canvas.style.display = 'none';
         };
       } else {
-        // Mode 1: Native HTML5 WebM (As-Is Built-in Alpha) or Mode 2: CSS Screen Blend
+        // Mode 1: Native HTML5 Video (HEVC MOV / WebM Alpha) or Mode 2: CSS Screen Blend
         canvas.style.display = 'none';
         video.style.display = 'block';
         video.style.setProperty('background', 'transparent', 'important');
@@ -574,14 +574,14 @@
         if (playbackMode === 'screen') {
           video.style.mixBlendMode = 'screen';
         } else {
-          video.style.mixBlendMode = 'normal'; // Native alpha playback as-is (preserves all natural black details)
+          video.style.mixBlendMode = 'normal'; // Native alpha playback as-is
         }
 
         video.src = src;
         video.currentTime = 0;
         
         video.play().then(() => {
-          console.log(`[Video] Playing ${src} with mode: ${playbackMode}`);
+          console.log(`[Video Engine] Playing ${src} with mode: ${playbackMode}`);
         }).catch(err => console.warn(err));
 
         video.onended = () => {
