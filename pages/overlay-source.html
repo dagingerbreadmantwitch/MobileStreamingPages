@@ -8,7 +8,7 @@
   <meta http-equiv="Expires" content="0">
   <title>Transparent Landscape Mobile Stream Overlay Source</title>
   <meta name="description" content="100% Transparent 16:9 landscape mobile stream browser source overlay with WebSockets/PeerJS phone remote control for Rive animations, WebM transparent videos, PNG overlays, clean overlay mode, and passcode security handshake.">
-  <link rel="stylesheet" href="../styles/main.css?v=7.0">
+  <link rel="stylesheet" href="../styles/main.css?v=8.0">
   <!-- Rive Web Canvas JS Runtime -->
   <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
   <style>
@@ -69,7 +69,6 @@
       display: none;
       background: transparent !important;
       background-color: transparent !important;
-      mix-blend-mode: screen; /* Converts black backgrounds to 100% transparent in all browsers */
     }
 
     #alphaCanvas {
@@ -245,9 +244,9 @@
       <!-- Quick Action Controls -->
       <div style="display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.4rem;">
         <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem; border-color: rgba(99,102,241,0.5);" onclick="toggleCleanOverlay()">🧹 Toggle Clean Overlay Mode</button>
-        <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="playWebM('../assets/shark_no_bg.webm')">🦈 Play Shark (shark_no_bg.webm)</button>
-        <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="playWebM('../assets/goldenstarr.webm')">⭐ Play Golden Star (goldenstarr.webm)</button>
-        <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="playWebM('../assets/dragon_no_bg.webm')">🐉 Play Dragon (dragon_no_bg.webm)</button>
+        <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="playWebM('../assets/shark_no_bg.webm', 'native')">🦈 Play Shark (shark_no_bg.webm)</button>
+        <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="playWebM('../assets/goldenstarr.webm', 'native')">⭐ Play Golden Star (goldenstarr.webm)</button>
+        <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="playWebM('../assets/dragon_no_bg.webm', 'native')">🐉 Play Dragon (dragon_no_bg.webm)</button>
         <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="playRive('../assets/animation.riv')">🎨 Trigger Rive Animation</button>
         <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="toggleGraphic('lower_third')">🏷️ Toggle Lower Third</button>
         <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="triggerAlert()">🔔 Trigger Subscriber Alert</button>
@@ -327,7 +326,7 @@
     </div>
   </div>
 
-  <script src="../scripts/remote-control.js?v=7.0"></script>
+  <script src="../scripts/remote-control.js?v=8.0"></script>
   <script>
     // Menu Drawer Toggle
     const menuBtn = document.getElementById('menuToggleBtn');
@@ -373,7 +372,7 @@
         case 'play_video':
         case 'play_video1':
         case 'play_video2':
-          playWebM(payload.src || '../assets/shark_no_bg.webm');
+          playWebM(payload.src || '../assets/shark_no_bg.webm', payload.playbackMode || 'native');
           break;
         case 'play_rive':
           playRive(payload.src || '../assets/animation.riv');
@@ -515,66 +514,80 @@
       }
     }
 
-    // Real-Time Canvas Luma Key Processor (Removes Solid Black Backgrounds 100%)
-    function playWebM(src = '../assets/shark_no_bg.webm') {
+    // WebM Video Player Logic Supporting 3 Selectable Modes (Native Alpha, CSS Screen Blend, Canvas Luma Key)
+    function playWebM(src = '../assets/shark_no_bg.webm', playbackMode = 'native') {
       const video = document.getElementById('overlayVideo');
       const canvas = document.getElementById('alphaCanvas');
       if (!video || !canvas) return;
 
-      // Reset previous loops
       if (alphaKeyAnimFrame) cancelAnimationFrame(alphaKeyAnimFrame);
 
-      video.style.display = 'none'; // Keep video offscreen
-      canvas.style.display = 'block';
+      if (playbackMode === 'lumakey') {
+        // Mode 3: Canvas Luma Key Processor (Strips Black)
+        video.style.display = 'none';
+        canvas.style.display = 'block';
 
-      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        video.src = src;
+        video.currentTime = 0;
 
-      video.src = src;
-      video.currentTime = 0;
+        video.onloadedmetadata = () => {
+          canvas.width = video.videoWidth || 1280;
+          canvas.height = video.videoHeight || 720;
+        };
+        
+        video.play().then(() => {
+          processLumaKeyFrame();
+        }).catch(err => console.warn(err));
 
-      video.onloadedmetadata = () => {
-        canvas.width = video.videoWidth || 1280;
-        canvas.height = video.videoHeight || 720;
-      };
-      
-      video.play().then(() => {
-        console.log('[Video Engine] WebM Luma Key processor active for:', src);
-        processLumaKeyFrame();
-      }).catch(err => {
-        console.warn('[Video Engine] Playback note:', err);
-      });
-
-      function processLumaKeyFrame() {
-        if (video.paused || video.ended) {
-          canvas.style.display = 'none';
-          return;
-        }
-
-        if (video.videoWidth > 0 && video.videoHeight > 0) {
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const data = frame.data;
-          const len = data.length;
-
-          // Strip pure black pixels (r < 32 && g < 32 && b < 32)
-          for (let i = 0; i < len; i += 4) {
-            const r = data[i];
-            const g = data[i + 1];
-            const b = data[i + 2];
-            if (r < 32 && g < 32 && b < 32) {
-              data[i + 3] = 0; // 100% Transparent Alpha
-            }
+        function processLumaKeyFrame() {
+          if (video.paused || video.ended) {
+            canvas.style.display = 'none';
+            return;
           }
-          ctx.putImageData(frame, 0, 0);
+
+          if (video.videoWidth > 0 && video.videoHeight > 0) {
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = frame.data;
+            for (let i = 0; i < data.length; i += 4) {
+              if (data[i] < 32 && data[i + 1] < 32 && data[i + 2] < 32) {
+                data[i + 3] = 0;
+              }
+            }
+            ctx.putImageData(frame, 0, 0);
+          }
+          alphaKeyAnimFrame = requestAnimationFrame(processLumaKeyFrame);
         }
 
-        alphaKeyAnimFrame = requestAnimationFrame(processLumaKeyFrame);
-      }
-
-      video.onended = () => {
-        if (alphaKeyAnimFrame) cancelAnimationFrame(alphaKeyAnimFrame);
+        video.onended = () => {
+          if (alphaKeyAnimFrame) cancelAnimationFrame(alphaKeyAnimFrame);
+          canvas.style.display = 'none';
+        };
+      } else {
+        // Mode 1: Native HTML5 WebM (As-Is Built-in Alpha) or Mode 2: CSS Screen Blend
         canvas.style.display = 'none';
-      };
+        video.style.display = 'block';
+        video.style.setProperty('background', 'transparent', 'important');
+        video.style.setProperty('background-color', 'transparent', 'important');
+
+        if (playbackMode === 'screen') {
+          video.style.mixBlendMode = 'screen';
+        } else {
+          video.style.mixBlendMode = 'normal'; // Native alpha playback as-is
+        }
+
+        video.src = src;
+        video.currentTime = 0;
+        
+        video.play().then(() => {
+          console.log(`[Video] Playing ${src} with mode: ${playbackMode}`);
+        }).catch(err => console.warn(err));
+
+        video.onended = () => {
+          video.style.display = 'none';
+        };
+      }
     }
 
     // Stop All Active Media Playback

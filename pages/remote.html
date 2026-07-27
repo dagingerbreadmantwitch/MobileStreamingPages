@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Master Stream Remote - MobileStream Studio</title>
   <meta name="description" content="All-in-one passcode-secured smartphone remote control for WebM video overlays, Rive animations, PNG graphic overlays, clean overlay mode, and exclusive room pairing.">
-  <link rel="stylesheet" href="../styles/main.css?v=7.0">
+  <link rel="stylesheet" href="../styles/main.css?v=8.0">
   <style>
     body {
       padding-bottom: 5rem;
@@ -275,8 +275,21 @@
       </div>
     </div>
 
-    <!-- 4. WebM Overlay Videos & Rive Animations Inventory -->
-    <h3 class="section-title">🎬 Uploaded Media Overlay Inventory</h3>
+    <!-- 4. WebM Overlay Videos & Rive Animations Inventory with Method Selector -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.8rem; margin-bottom: 0.8rem; flex-wrap: wrap; gap: 0.5rem;">
+      <h3 class="section-title" style="margin: 0;">🎬 Uploaded Media Overlay Inventory</h3>
+      
+      <!-- WebM Transparency Method Selector -->
+      <div style="display: flex; align-items: center; gap: 0.4rem;">
+        <span style="font-size: 0.75rem; color: var(--text-muted);">WebM Mode:</span>
+        <select id="webmModeSelect" style="padding: 0.4rem 0.7rem; border-radius: 8px; border: 1px solid var(--border-glass-bright); background: rgba(15,23,42,0.9); color: #00ffcc; font-family: var(--font-mono); font-size: 0.8rem; font-weight: 700;">
+          <option value="native" selected>✨ Native HTML5 (As-Is Alpha)</option>
+          <option value="screen">🎨 CSS Screen Blend</option>
+          <option value="lumakey">🪄 Canvas Luma-Key (Strip Black)</option>
+        </select>
+      </div>
+    </div>
+
     <div class="media-grid">
       <!-- Shark WebM -->
       <button class="touch-btn btn-shark" onclick="playWebM('../assets/shark_no_bg.webm')">
@@ -382,7 +395,7 @@
 
   </main>
 
-  <script src="../scripts/remote-control.js?v=7.0"></script>
+  <script src="../scripts/remote-control.js?v=8.0"></script>
   <script>
     let currentPin = '';
     let isCleanMode = false;
@@ -534,7 +547,8 @@
     }
 
     function playWebM(src) {
-      window.remoteEngine.send('play_video', { src });
+      const playbackMode = document.getElementById('webmModeSelect')?.value || 'native';
+      window.remoteEngine.send('play_video', { src, playbackMode });
     }
 
     function playRive(src = '../assets/animation.riv') {
