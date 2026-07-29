@@ -7,8 +7,8 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>Transparent Landscape Mobile Stream Overlay Source</title>
-  <meta name="description" content="100% Transparent 16:9 landscape mobile stream browser source overlay with WebSockets/PeerJS phone remote control for GPU Texture Buffer Shaders, Procedural GLSL Shaders, Rive animations, WebM transparent videos, PNG overlays, clean overlay mode, and passcode security handshake.">
-  <link rel="stylesheet" href="../styles/main.css?v=19.0">
+  <meta name="description" content="100% Transparent 16:9 landscape mobile stream browser source overlay with WebSockets/PeerJS phone remote control for Escalating Flame Borders Shader, Party Confetti Filter, GPU Texture Buffer Shaders, Procedural GLSL Shaders, Rive animations, WebM transparent videos, PNG overlays, clean overlay mode, and passcode security handshake.">
+  <link rel="stylesheet" href="../styles/main.css?v=20.0">
   <!-- Rive Web Canvas JS Runtime -->
   <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
   <style>
@@ -264,6 +264,8 @@
 
       <!-- Quick Action Controls -->
       <div style="display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.4rem;">
+        <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem; border-color: rgba(239,68,68,0.6);" onclick="playProceduralShader('flame_borders', 0.75)">🔥 Escalating Flame Borders</button>
+        <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem; border-color: rgba(236,72,153,0.6);" onclick="playProceduralShader('party_confetti', 0.75)">🎉 Party Colors & Confetti</button>
         <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem; border-color: rgba(249,115,22,0.6);" onclick="playProceduralShader('volcanic_lava', 0.75)">🌋 Volcanic Lava Lake Shader</button>
         <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem; border-color: rgba(245,158,11,0.6);" onclick="playProceduralShader('golden_starburst', 0.75)">✨ Golden Starburst Particle Shader</button>
         <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem; border-color: rgba(99,102,241,0.5);" onclick="toggleCleanOverlay()">🧹 Toggle Clean Overlay Mode</button>
@@ -349,7 +351,7 @@
     </div>
   </div>
 
-  <script src="../scripts/remote-control.js?v=19.0"></script>
+  <script src="../scripts/remote-control.js?v=20.0"></script>
   <script>
     // iOS WebKit Unfocused State Override & Hybrid Animation Driver
     try {
@@ -417,13 +419,15 @@
     let webglProgram = null;
     let webglTexture = null;
 
-    // GPU Texture Buffer Cache (Decodes Video ONCE into GPU Texture Memory Array, Destroying HTML Video Tag)
+    // GPU Texture Buffer Cache
     const gpuTextureBufferCache = new Map();
 
-    // Procedural Shader State
+    // Procedural Shader Programs
     let shaderGl = null;
     let shaderLavaProgram = null;
     let shaderStarProgram = null;
+    let shaderFlamesProgram = null;
+    let shaderPartyProgram = null;
     let currentShaderOpacity = 0.75;
 
     menuBtn.addEventListener('click', () => {
@@ -504,7 +508,7 @@
       }
     });
 
-    // Procedural GLSL Shader Engine (Volcanic Lava & Golden Starburst Particle Math Shaders)
+    // Procedural GLSL Shader Engine Suite (Lava, Starburst, Flame Borders 3-Level, Party Confetti)
     function initProceduralShaderSystem(canvas) {
       if (shaderGl) return shaderGl;
 
@@ -520,7 +524,7 @@
         }
       `;
 
-      // 1. Volcanic Lava Lake Shader GLSL
+      // 1. Volcanic Lava Lake GLSL Shader
       const fsLavaSource = `
         precision mediump float;
         uniform vec2 iResolution;
@@ -574,7 +578,7 @@
         }
       `;
 
-      // 2. Golden Starburst Math Particle Shader GLSL
+      // 2. Golden Starburst Math Particle GLSL Shader
       const fsStarSource = `
         precision mediump float;
         uniform vec2 iResolution;
@@ -602,6 +606,103 @@
         }
       `;
 
+      // 3. Escalating Flame Borders GLSL Shader (Top & Bottom Screen Flames, 3 Heat Levels Every 5 Sec)
+      const fsFlamesSource = `
+        precision mediump float;
+        uniform vec2 iResolution;
+        uniform float iTime;
+        uniform float uOpacity;
+
+        float hash(vec2 p) {
+          return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+        }
+
+        float noise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(hash(i + vec2(0.0, 0.0)), hash(i + vec2(1.0, 0.0)), f.x),
+                     mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+        }
+
+        float fbm(vec2 p) {
+          float v = 0.0;
+          v += 0.5 * noise(p); p *= 2.01;
+          v += 0.25 * noise(p); p *= 2.02;
+          v += 0.125 * noise(p);
+          return v;
+        }
+
+        void main() {
+          vec2 uv = gl_FragCoord.xy / iResolution.xy;
+
+          // 5-second heat escalation level (Level 0 -> 1 -> 2 -> reset to 0)
+          float cycleTime = mod(iTime, 15.0);
+          float heatLevel = floor(cycleTime / 5.0);
+          if (heatLevel > 2.0) heatLevel = 0.0;
+
+          float heightScale = 0.07 + heatLevel * 0.12; // Level 0: 20px, Level 1: ~50px, Level 2: ~80px
+          float speed = 1.4 + heatLevel * 0.9;
+
+          float distTop = 1.0 - uv.y;
+          float distBottom = uv.y;
+          float minDist = min(distTop, distBottom);
+
+          vec2 st = vec2(uv.x * 6.0, minDist / heightScale - iTime * speed);
+          float n = fbm(st + vec2(fbm(st * 2.0), 0.0));
+          float flame = smoothstep(1.0, 0.0, minDist / (heightScale * (0.4 + n * 0.9)));
+
+          if (flame > 0.02) {
+            vec3 col = mix(vec3(1.0, 0.15, 0.0), vec3(1.0, 0.85, 0.1), flame);
+            col = mix(col, vec3(1.0, 0.98, 0.85), pow(flame, 2.5));
+            float alpha = clamp(flame * uOpacity, 0.0, uOpacity);
+            gl_FragColor = vec4(col, alpha);
+          } else {
+            gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
+          }
+        }
+      `;
+
+      // 4. Party Filter GLSL Shader (Disco Neon Colors + Falling Multi-color Confetti)
+      const fsPartySource = `
+        precision mediump float;
+        uniform vec2 iResolution;
+        uniform float iTime;
+        uniform float uOpacity;
+
+        float hash(vec2 p) {
+          return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+        }
+
+        void main() {
+          vec2 uv = gl_FragCoord.xy / iResolution.xy;
+          vec2 st = (gl_FragCoord.xy - 0.5 * iResolution.xy) / iResolution.y;
+
+          float t = iTime * 2.2;
+          vec3 partyColor = 0.5 + 0.5 * cos(t + uv.xyx + vec3(0.0, 2.0, 4.0));
+          vec3 bgGlow = partyColor * 0.22 * (1.0 - length(st));
+
+          vec3 confettiCol = vec3(0.0);
+          for (float i = 0.0; i < 45.0; i += 1.0) {
+            vec2 pos = vec2(
+              hash(vec2(i, 1.2)) * 1.8 - 0.9 + sin(iTime * 1.6 + i) * 0.12,
+              mod(1.2 - (iTime * (0.22 + hash(vec2(i, 3.4)) * 0.32) + i * 0.07), 1.6) - 0.8
+            );
+
+            float d = length(st - pos);
+            float size = 0.012 + hash(vec2(i, 5.6)) * 0.016;
+            if (d < size) {
+              vec3 pCol = 0.5 + 0.5 * cos(i * 1.8 + vec3(0.0, 2.0, 4.0));
+              confettiCol = pCol * (1.0 - d / size);
+            }
+          }
+
+          vec3 finalColor = bgGlow + confettiCol;
+          float alpha = clamp(length(finalColor) * uOpacity, 0.0, uOpacity);
+          gl_FragColor = vec4(finalColor, alpha);
+        }
+      `;
+
       function createShader(gl, type, source) {
         const shader = gl.createShader(type);
         gl.shaderSource(shader, source);
@@ -621,6 +722,8 @@
 
       shaderLavaProgram = createProgram(gl, vsSource, fsLavaSource);
       shaderStarProgram = createProgram(gl, vsSource, fsStarSource);
+      shaderFlamesProgram = createProgram(gl, vsSource, fsFlamesSource);
+      shaderPartyProgram = createProgram(gl, vsSource, fsPartySource);
 
       const buffer = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
@@ -647,7 +750,11 @@
       const gl = initProceduralShaderSystem(canvas);
       if (!gl) return;
 
-      const targetProgram = (shaderName === 'golden_starburst') ? shaderStarProgram : shaderLavaProgram;
+      let targetProgram = shaderLavaProgram;
+      if (shaderName === 'golden_starburst') targetProgram = shaderStarProgram;
+      if (shaderName === 'flame_borders') targetProgram = shaderFlamesProgram;
+      if (shaderName === 'party_confetti') targetProgram = shaderPartyProgram;
+
       const startTime = performance.now();
 
       const resLoc = gl.getUniformLocation(targetProgram, "iResolution");
@@ -952,7 +1059,6 @@
           };
 
           gpuTextureBufferCache.set(videoSrc, gpuBufferData);
-          console.log(`[GPU Texture Buffer] Decoded ${frameTextures.length} frames into GPU RAM for ${videoSrc}`);
           resolve(gpuBufferData);
         };
       });
