@@ -7,8 +7,8 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>Transparent Landscape Mobile Stream Overlay Source</title>
-  <meta name="description" content="100% Transparent 16:9 landscape mobile stream browser source overlay with WebSockets/PeerJS phone remote control for In-Memory Blob Preloaded WebGL GPU Shader, Rive animations, WebM transparent videos, PNG overlays, clean overlay mode, and passcode security handshake.">
-  <link rel="stylesheet" href="../styles/main.css?v=18.0">
+  <meta name="description" content="100% Transparent 16:9 landscape mobile stream browser source overlay with WebSockets/PeerJS phone remote control for GPU Texture Buffer Shaders, Procedural GLSL Shaders, Rive animations, WebM transparent videos, PNG overlays, clean overlay mode, and passcode security handshake.">
+  <link rel="stylesheet" href="../styles/main.css?v=19.0">
   <!-- Rive Web Canvas JS Runtime -->
   <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
   <style>
@@ -349,7 +349,7 @@
     </div>
   </div>
 
-  <script src="../scripts/remote-control.js?v=18.0"></script>
+  <script src="../scripts/remote-control.js?v=19.0"></script>
   <script>
     // iOS WebKit Unfocused State Override & Hybrid Animation Driver
     try {
@@ -416,6 +416,9 @@
     let webglContext = null;
     let webglProgram = null;
     let webglTexture = null;
+
+    // GPU Texture Buffer Cache (Decodes Video ONCE into GPU Texture Memory Array, Destroying HTML Video Tag)
+    const gpuTextureBufferCache = new Map();
 
     // Procedural Shader State
     let shaderGl = null;
@@ -894,7 +897,68 @@
       return gl;
     }
 
-    // Instant Video Player Logic with In-Memory Blob Caching & Hybrid Loop for Unfocused iOS WebViews
+    // Pre-decode Video into GPU Texture Array Buffer (Destroys HTML Video Element After Loading)
+    async function getOrBuildGpuTextureBuffer(gl, videoSrc, totalFramesToSample = 30) {
+      if (gpuTextureBufferCache.has(videoSrc)) {
+        return gpuTextureBufferCache.get(videoSrc);
+      }
+
+      const activeUrl = await getPreloadedMediaUrl(videoSrc);
+      const tempVideo = document.createElement('video');
+      tempVideo.crossOrigin = 'anonymous';
+      tempVideo.muted = true;
+      tempVideo.playsInline = true;
+      tempVideo.autoplay = true;
+      tempVideo.src = activeUrl;
+
+      return new Promise((resolve) => {
+        tempVideo.onloadeddata = async () => {
+          await tempVideo.play().catch(() => {});
+
+          const frameTextures = [];
+          const canvas = document.createElement('canvas');
+          canvas.width = tempVideo.videoWidth || 640;
+          canvas.height = tempVideo.videoHeight || 360;
+          const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+          const duration = tempVideo.duration || 2.0;
+          const frameInterval = duration / totalFramesToSample;
+
+          for (let i = 0; i < totalFramesToSample; i++) {
+            tempVideo.currentTime = i * frameInterval;
+            ctx.drawImage(tempVideo, 0, 0, canvas.width, canvas.height);
+
+            const tex = gl.createTexture();
+            gl.bindTexture(gl.TEXTURE_2D, tex);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
+
+            frameTextures.push(tex);
+          }
+
+          // Destroy HTML video tag completely!
+          tempVideo.pause();
+          tempVideo.removeAttribute('src');
+
+          const gpuBufferData = {
+            textures: frameTextures,
+            fps: 24,
+            totalFrames: frameTextures.length,
+            width: canvas.width,
+            height: canvas.height
+          };
+
+          gpuTextureBufferCache.set(videoSrc, gpuBufferData);
+          console.log(`[GPU Texture Buffer] Decoded ${frameTextures.length} frames into GPU RAM for ${videoSrc}`);
+          resolve(gpuBufferData);
+        };
+      });
+    }
+
+    // Instant Video Player Logic with In-Memory Blob Caching & GPU Texture Array iTime Shader Player
     async function playWebM(src = '../assets/shark_no_bg.webm', playbackMode = 'webgl') {
       const video = document.getElementById('overlayVideo');
       const canvas = document.getElementById('alphaCanvas');
@@ -913,42 +977,36 @@
       const activeUrl = await getPreloadedMediaUrl(src);
 
       if (playbackMode === 'webgl') {
-        // Mode 4: WebGL GPU Texture Shader Engine (Bypasses WebView Video Player Limitations)
+        // Mode 4: GPU Texture Buffer iTime Shader Player (Completely removes HTML Video Tag after 1-time decode)
         video.style.display = 'none';
         canvas.style.display = 'none';
         webglCanvas.style.display = 'block';
 
         const gl = initWebGLShader(webglCanvas);
-        video.src = activeUrl;
+        const gpuBuffer = await getOrBuildGpuTextureBuffer(gl, src, 30);
 
-        video.onloadeddata = () => {
-          webglCanvas.width = video.videoWidth || 1280;
-          webglCanvas.height = video.videoHeight || 720;
+        if (gpuBuffer && gpuBuffer.textures.length > 0) {
+          webglCanvas.width = gpuBuffer.width;
+          webglCanvas.height = gpuBuffer.height;
           if (gl) gl.viewport(0, 0, webglCanvas.width, webglCanvas.height);
 
-          video.play().then(() => {
-            runHybridLoop(() => {
-              if (video.paused || video.ended) {
-                webglCanvas.style.display = 'none';
-                return;
-              }
+          const startTime = performance.now();
 
-              if (gl && video.videoWidth > 0 && video.videoHeight > 0) {
-                gl.bindTexture(gl.TEXTURE_2D, webglTexture);
-                gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
-                
-                gl.clearColor(0.0, 0.0, 0.0, 0.0);
-                gl.clear(gl.COLOR_BUFFER_BIT);
-                gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-              }
-            });
-          }).catch(err => console.warn('[WebGL Engine] Play error:', err));
-        };
+          runHybridLoop((now) => {
+            if (webglCanvas.style.display === 'none') return;
 
-        video.onended = () => {
-          webglCanvas.style.display = 'none';
-        };
+            const elapsedTime = (now - startTime) * 0.001; // Seconds
+            const frameIndex = Math.floor(elapsedTime * gpuBuffer.fps) % gpuBuffer.totalFrames;
+            const activeTexture = gpuBuffer.textures[frameIndex];
+
+            if (gl && activeTexture) {
+              gl.bindTexture(gl.TEXTURE_2D, activeTexture);
+              gl.clearColor(0.0, 0.0, 0.0, 0.0);
+              gl.clear(gl.COLOR_BUFFER_BIT);
+              gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+            }
+          });
+        }
 
       } else if (playbackMode === 'lumakey') {
         // Mode 3: Canvas Luma Key Processor (Strips Black)
