@@ -7,8 +7,8 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>Transparent Landscape Mobile Stream Overlay Source</title>
-  <meta name="description" content="100% Transparent 16:9 landscape mobile stream browser source overlay with WebSockets/PeerJS phone remote control for WebGL GPU Shader, Rive animations, WebM transparent videos, PNG overlays, clean overlay mode, and passcode security handshake.">
-  <link rel="stylesheet" href="../styles/main.css?v=14.0">
+  <meta name="description" content="100% Transparent 16:9 landscape mobile stream browser source overlay with WebSockets/PeerJS phone remote control for Procedural Volcanic Lava GLSL Shader, WebGL GPU Shader, Rive animations, WebM transparent videos, PNG overlays, clean overlay mode, and passcode security handshake.">
+  <link rel="stylesheet" href="../styles/main.css?v=15.0">
   <!-- Rive Web Canvas JS Runtime -->
   <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
   <style>
@@ -41,7 +41,7 @@
       pointer-events: auto;
     }
 
-    /* Media Overlay Layers (Rive Canvas, WebGL Shader Canvas, Video, Alpha Canvas & PNG Overlay) */
+    /* Media Overlay Layers (Shader Canvas, WebGL Video Canvas, Rive Canvas & PNG Overlay) */
     .media-overlay-container {
       position: fixed;
       inset: 0;
@@ -51,6 +51,17 @@
       align-items: center;
       justify-content: center;
       background: transparent !important;
+    }
+
+    #shaderCanvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: none;
+      background: transparent !important;
+      pointer-events: none;
     }
 
     #webglCanvas {
@@ -220,8 +231,9 @@
 </head>
 <body class="transparent-mode" id="overlayBody">
 
-  <!-- Fullscreen Media Overlay Layers (Rive Canvas, WebGL Shader Canvas, Video, Alpha Canvas & PNG Overlay) -->
+  <!-- Fullscreen Media Overlay Layers (Procedural GLSL Shader Canvas, Rive Canvas, WebGL Video Canvas, Video, Alpha Canvas & PNG Overlay) -->
   <div class="media-overlay-container">
+    <canvas id="shaderCanvas"></canvas>
     <canvas id="webglCanvas"></canvas>
     <canvas id="riveCanvas"></canvas>
     <video id="overlayVideo" autoplay playsinline webkit-playsinline muted crossorigin="anonymous"></video>
@@ -252,6 +264,7 @@
 
       <!-- Quick Action Controls -->
       <div style="display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.4rem;">
+        <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem; border-color: rgba(249,115,22,0.6);" onclick="playLavaShader(0.70)">🌋 Volcanic Lava Lake Shader</button>
         <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem; border-color: rgba(99,102,241,0.5);" onclick="toggleCleanOverlay()">🧹 Toggle Clean Overlay Mode</button>
         <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="playWebM('../assets/shark_no_bg.webm', 'webgl')">🦈 Play Shark (shark_no_bg.webm)</button>
         <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="playWebM('../assets/goldenstarr.webm', 'webgl')">⭐ Play Golden Star (goldenstarr.webm)</button>
@@ -335,7 +348,7 @@
     </div>
   </div>
 
-  <script src="../scripts/remote-control.js?v=14.0"></script>
+  <script src="../scripts/remote-control.js?v=15.0"></script>
   <script>
     // Menu Drawer Toggle
     const menuBtn = document.getElementById('menuToggleBtn');
@@ -347,11 +360,17 @@
     let textTimeout = null;
     let alphaKeyAnimFrame = null;
     let webglAnimFrame = null;
+    let proceduralShaderAnimFrame = null;
 
-    // WebGL Shader Engine State
+    // WebGL Video State
     let webglContext = null;
     let webglProgram = null;
     let webglTexture = null;
+
+    // Procedural Shader State
+    let shaderGl = null;
+    let shaderProgram = null;
+    let currentShaderOpacity = 0.70;
 
     menuBtn.addEventListener('click', () => {
       menuDrawer.classList.toggle('open');
@@ -369,6 +388,15 @@
       const { action, payload } = event;
 
       switch (action) {
+        case 'play_procedural_shader':
+          playLavaShader(payload.opacity || 0.70);
+          break;
+        case 'stop_procedural_shader':
+          stopLavaShader();
+          break;
+        case 'update_shader_opacity':
+          currentShaderOpacity = payload.opacity || 0.70;
+          break;
         case 'show_png_overlay':
           showPngOverlay(payload.src, payload.position, payload.duration);
           break;
@@ -421,6 +449,152 @@
           break;
       }
     });
+
+    // Procedural Volcanic Crater Lava Lake GLSL Shader Engine
+    function initProceduralLavaShader(canvas) {
+      if (shaderGl) return shaderGl;
+
+      const gl = canvas.getContext('webgl', { alpha: true, premultipliedAlpha: false, preserveDrawingBuffer: true }) || 
+                 canvas.getContext('experimental-webgl', { alpha: true });
+
+      if (!gl) return null;
+
+      const vsSource = `
+        attribute vec2 a_position;
+        void main() {
+          gl_Position = vec4(a_position, 0.0, 1.0);
+        }
+      `;
+
+      const fsSource = `
+        precision mediump float;
+        uniform vec2 iResolution;
+        uniform float iTime;
+        uniform float uOpacity;
+
+        vec2 hash2(vec2 p) {
+          p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
+          return fract(sin(p) * 43758.5453123);
+        }
+
+        float voronoi(vec2 p) {
+          vec2 n = floor(p);
+          vec2 f = fract(p);
+          float md = 8.0;
+          for (int j = -1; j <= 1; j++) {
+            for (int i = -1; i <= 1; i++) {
+              vec2 g = vec2(float(i), float(j));
+              vec2 o = hash2(n + g);
+              vec2 r = g + o - f;
+              float d = dot(r, r);
+              md = min(md, d);
+            }
+          }
+          return sqrt(md);
+        }
+
+        float fbm(vec2 p) {
+          float f = 0.0;
+          f += 0.5000 * voronoi(p); p *= 2.02;
+          f += 0.2500 * voronoi(p); p *= 2.03;
+          return f;
+        }
+
+        void main() {
+          vec2 uv = (gl_FragCoord.xy - 0.5 * iResolution.xy) / iResolution.y;
+          float depth = 0.35 - uv.y;
+
+          if (depth > 0.0) {
+            vec2 mapUV = vec2(uv.x / depth, 1.0 / depth) * 0.25;
+            mapUV.y -= iTime * 0.04;
+
+            float borderDist = voronoi(mapUV + vec2(fbm(mapUV)));
+            vec3 heat = vec3(1.0, 0.38, 0.04) * exp(-borderDist * 11.0);
+            vec3 lavaColor = mix(vec3(0.08, 0.01, 0.02), heat, step(0.08, heat.r));
+            float alpha = clamp(heat.r * uOpacity * 1.4, 0.0, uOpacity);
+            gl_FragColor = vec4(lavaColor, alpha);
+          } else {
+            gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
+          }
+        }
+      `;
+
+      function createShader(gl, type, source) {
+        const shader = gl.createShader(type);
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+        return shader;
+      }
+
+      const vertShader = createShader(gl, gl.VERTEX_SHADER, vsSource);
+      const fragShader = createShader(gl, gl.FRAGMENT_SHADER, fsSource);
+      const program = gl.createProgram();
+      gl.attachShader(program, vertShader);
+      gl.attachShader(program, fragShader);
+      gl.linkProgram(program);
+      gl.useProgram(program);
+
+      const buffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+        -1, -1,
+         1, -1,
+        -1,  1,
+         1,  1,
+      ]), gl.STATIC_DRAW);
+
+      const posLoc = gl.getAttribLocation(program, "a_position");
+      gl.enableVertexAttribArray(posLoc);
+      gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+      shaderGl = gl;
+      shaderProgram = program;
+      return gl;
+    }
+
+    function playLavaShader(opacity = 0.70) {
+      const canvas = document.getElementById('shaderCanvas');
+      if (!canvas) return;
+
+      currentShaderOpacity = opacity;
+      canvas.style.display = 'block';
+
+      const gl = initProceduralLavaShader(canvas);
+      if (!gl) return;
+
+      const startTime = performance.now();
+      const resLoc = gl.getUniformLocation(shaderProgram, "iResolution");
+      const timeLoc = gl.getUniformLocation(shaderProgram, "iTime");
+      const opacityLoc = gl.getUniformLocation(shaderProgram, "uOpacity");
+
+      function renderShaderFrame(now) {
+        if (canvas.style.display === 'none') return;
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        gl.viewport(0, 0, canvas.width, canvas.height);
+
+        gl.useProgram(shaderProgram);
+        gl.uniform2f(resLoc, canvas.width, canvas.height);
+        gl.uniform1f(timeLoc, (now - startTime) * 0.001);
+        gl.uniform1f(opacityLoc, currentShaderOpacity);
+
+        gl.clearColor(0.0, 0.0, 0.0, 0.0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+        proceduralShaderAnimFrame = requestAnimationFrame(renderShaderFrame);
+      }
+
+      if (proceduralShaderAnimFrame) cancelAnimationFrame(proceduralShaderAnimFrame);
+      proceduralShaderAnimFrame = requestAnimationFrame(renderShaderFrame);
+    }
+
+    function stopLavaShader() {
+      const canvas = document.getElementById('shaderCanvas');
+      if (proceduralShaderAnimFrame) cancelAnimationFrame(proceduralShaderAnimFrame);
+      if (canvas) canvas.style.display = 'none';
+    }
 
     // PNG Graphic Overlay Engine
     function showPngOverlay(src, position = 'pos-center', duration = 8000) {
@@ -755,6 +929,7 @@
       const webglCanvas = document.getElementById('webglCanvas');
       const textBanner = document.getElementById('dynamicTextOverlay');
 
+      stopLavaShader();
       if (alphaKeyAnimFrame) cancelAnimationFrame(alphaKeyAnimFrame);
       if (webglAnimFrame) cancelAnimationFrame(webglAnimFrame);
       if (canvas) canvas.style.display = 'none';
