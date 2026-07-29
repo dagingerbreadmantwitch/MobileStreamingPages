@@ -8,7 +8,7 @@
   <meta http-equiv="Expires" content="0">
   <title>Transparent Landscape Mobile Stream Overlay Source</title>
   <meta name="description" content="100% Transparent 16:9 landscape mobile stream browser source overlay with WebSockets/PeerJS phone remote control for In-Memory Blob Preloaded WebGL GPU Shader, Rive animations, WebM transparent videos, PNG overlays, clean overlay mode, and passcode security handshake.">
-  <link rel="stylesheet" href="../styles/main.css?v=16.0">
+  <link rel="stylesheet" href="../styles/main.css?v=17.0">
   <!-- Rive Web Canvas JS Runtime -->
   <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
   <style>
@@ -348,8 +348,27 @@
     </div>
   </div>
 
-  <script src="../scripts/remote-control.js?v=16.0"></script>
+  <script src="../scripts/remote-control.js?v=17.0"></script>
   <script>
+    // iOS WebKit Unfocused State Override & Hybrid Animation Driver
+    try {
+      Object.defineProperty(document, 'hidden', { get: () => false, configurable: true });
+      Object.defineProperty(document, 'visibilityState', { get: () => 'visible', configurable: true });
+    } catch(e) {}
+
+    // Universal Hybrid Frame Loop Driver (Runs 60 FPS even when iOS WKWebView loses focus)
+    function runHybridLoop(stepCallback) {
+      function loop(time) {
+        stepCallback(time);
+        if (document.hidden || !document.hasFocus()) {
+          setTimeout(() => loop(performance.now()), 16);
+        } else {
+          requestAnimationFrame(loop);
+        }
+      }
+      loop(performance.now());
+    }
+
     // Menu Drawer Toggle
     const menuBtn = document.getElementById('menuToggleBtn');
     const menuDrawer = document.getElementById('menuDrawer');
@@ -361,6 +380,7 @@
     let alphaKeyAnimFrame = null;
     let webglAnimFrame = null;
     let proceduralShaderAnimFrame = null;
+    let isShaderActive = false;
 
     // In-Memory Blob Preloader Cache (Eliminates Network Latency & URL Loading Freezes)
     const mediaBlobCache = new Map();
@@ -375,10 +395,8 @@
         const blob = await response.blob();
         const blobUrl = URL.createObjectURL(blob);
         mediaBlobCache.set(url, blobUrl);
-        console.log(`[Blob Preloader] Successfully cached media blob for: ${url}`);
         return blobUrl;
       } catch (err) {
-        console.warn(`[Blob Preloader] Direct URL fallback for ${url}:`, err);
         return url;
       }
     }
@@ -480,7 +498,7 @@
       }
     });
 
-    // Procedural Volcanic Crater Lava Lake GLSL Shader Engine
+    // Procedural Volcanic Crater Lava Lake GLSL Shader Engine (Runs Hybrid Unfocused Loop)
     function initProceduralLavaShader(canvas) {
       if (shaderGl) return shaderGl;
 
@@ -588,6 +606,7 @@
 
       currentShaderOpacity = opacity;
       canvas.style.display = 'block';
+      isShaderActive = true;
 
       const gl = initProceduralLavaShader(canvas);
       if (!gl) return;
@@ -597,8 +616,8 @@
       const timeLoc = gl.getUniformLocation(shaderProgram, "iTime");
       const opacityLoc = gl.getUniformLocation(shaderProgram, "uOpacity");
 
-      function renderShaderFrame(now) {
-        if (canvas.style.display === 'none') return;
+      runHybridLoop((now) => {
+        if (!isShaderActive || canvas.style.display === 'none') return;
 
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
@@ -612,17 +631,12 @@
         gl.clearColor(0.0, 0.0, 0.0, 0.0);
         gl.clear(gl.COLOR_BUFFER_BIT);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-
-        proceduralShaderAnimFrame = requestAnimationFrame(renderShaderFrame);
-      }
-
-      if (proceduralShaderAnimFrame) cancelAnimationFrame(proceduralShaderAnimFrame);
-      proceduralShaderAnimFrame = requestAnimationFrame(renderShaderFrame);
+      });
     }
 
     function stopLavaShader() {
+      isShaderActive = false;
       const canvas = document.getElementById('shaderCanvas');
-      if (proceduralShaderAnimFrame) cancelAnimationFrame(proceduralShaderAnimFrame);
       if (canvas) canvas.style.display = 'none';
     }
 
@@ -689,19 +703,40 @@
       }
     }
 
-    // Dynamic Text Banner Player - Dead-Centered in Middle of Canvas
+    // Dynamic Text Banner Player (Hardware-Accelerated + Web Animations API Fallback for Unfocused iOS WebViews)
     function showCustomText(text = 'LIVE STREAM', animStyle = 'intro-bounce-pop', color = '#ffffff') {
       const banner = document.getElementById('dynamicTextOverlay');
       if (!banner) return;
 
-      banner.className = 'dynamic-text-banner visible';
-      banner.textContent = text;
+      banner.style.display = 'inline-block';
       banner.style.color = color;
+      banner.textContent = text;
+      banner.className = `dynamic-text-banner visible ${animStyle || 'intro-bounce-pop'}`;
 
-      banner.classList.add(animStyle || 'intro-bounce-pop');
+      // Web Animations API Fallback (Guarantees animation plays on iOS WebKit compositor thread even when out of focus)
+      if (banner.animate) {
+        if (animStyle === 'intro-slide-up') {
+          banner.animate([
+            { transform: 'translate3d(-50%, 100px, 0)', opacity: 0 },
+            { transform: 'translate3d(-50%, -50%, 0)', opacity: 1 }
+          ], { duration: 600, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)', fill: 'forwards' });
+        } else if (animStyle === 'intro-bounce-pop') {
+          banner.animate([
+            { transform: 'translate3d(-50%, -50%, 0) scale(0.2)', opacity: 0 },
+            { transform: 'translate3d(-50%, -50%, 0) scale(1.15)', opacity: 1, offset: 0.6 },
+            { transform: 'translate3d(-50%, -50%, 0) scale(1)', opacity: 1 }
+          ], { duration: 700, easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)', fill: 'forwards' });
+        } else if (animStyle === 'intro-scale-spring') {
+          banner.animate([
+            { transform: 'translate3d(-50%, -50%, 0) scale(0.5)', opacity: 0 },
+            { transform: 'translate3d(-50%, -50%, 0) scale(1)', opacity: 1 }
+          ], { duration: 500, easing: 'cubic-bezier(0.175, 0.885, 0.32, 1.275)', fill: 'forwards' });
+        }
+      }
 
       if (textTimeout) clearTimeout(textTimeout);
       textTimeout = setTimeout(() => {
+        banner.style.display = 'none';
         banner.className = 'dynamic-text-banner';
       }, 6000);
     }
@@ -725,7 +760,6 @@
           canvas: canvas,
           autoplay: true,
           onLoad: () => {
-            console.log('[Rive] Animation loaded successfully from:', activeUrl);
             currentRiveInstance.resizeDrawingSurfaceToCanvas();
           },
           onLoadError: (err) => {
@@ -821,7 +855,7 @@
       return gl;
     }
 
-    // Instant Video Player Logic with In-Memory Blob Caching
+    // Instant Video Player Logic with In-Memory Blob Caching & Hybrid Loop for Unfocused iOS WebViews
     async function playWebM(src = '../assets/shark_no_bg.webm', playbackMode = 'webgl') {
       const video = document.getElementById('overlayVideo');
       const canvas = document.getElementById('alphaCanvas');
@@ -854,32 +888,26 @@
           if (gl) gl.viewport(0, 0, webglCanvas.width, webglCanvas.height);
 
           video.play().then(() => {
-            console.log(`[WebGL GPU Engine] WebGL Texture Shader Active for ${src}`);
-            renderWebGLFrame();
+            runHybridLoop(() => {
+              if (video.paused || video.ended) {
+                webglCanvas.style.display = 'none';
+                return;
+              }
+
+              if (gl && video.videoWidth > 0 && video.videoHeight > 0) {
+                gl.bindTexture(gl.TEXTURE_2D, webglTexture);
+                gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
+                
+                gl.clearColor(0.0, 0.0, 0.0, 0.0);
+                gl.clear(gl.COLOR_BUFFER_BIT);
+                gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+              }
+            });
           }).catch(err => console.warn('[WebGL Engine] Play error:', err));
         };
 
-        function renderWebGLFrame() {
-          if (video.paused || video.ended) {
-            webglCanvas.style.display = 'none';
-            return;
-          }
-
-          if (gl && video.videoWidth > 0 && video.videoHeight > 0) {
-            gl.bindTexture(gl.TEXTURE_2D, webglTexture);
-            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
-            
-            gl.clearColor(0.0, 0.0, 0.0, 0.0);
-            gl.clear(gl.COLOR_BUFFER_BIT);
-            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-          }
-
-          webglAnimFrame = requestAnimationFrame(renderWebGLFrame);
-        }
-
         video.onended = () => {
-          if (webglAnimFrame) cancelAnimationFrame(webglAnimFrame);
           webglCanvas.style.display = 'none';
         };
 
@@ -896,32 +924,28 @@
           canvas.width = video.videoWidth || 1280;
           canvas.height = video.videoHeight || 720;
           video.play().then(() => {
-            processLumaKeyFrame();
+            runHybridLoop(() => {
+              if (video.paused || video.ended) {
+                canvas.style.display = 'none';
+                return;
+              }
+
+              if (video.videoWidth > 0 && video.videoHeight > 0) {
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const data = frame.data;
+                for (let i = 0; i < data.length; i += 4) {
+                  if (data[i] < 32 && data[i + 1] < 32 && data[i + 2] < 32) {
+                    data[i + 3] = 0;
+                  }
+                }
+                ctx.putImageData(frame, 0, 0);
+              }
+            });
           }).catch(err => console.warn('[Video Engine] Luma key play error:', err));
         };
 
-        function processLumaKeyFrame() {
-          if (video.paused || video.ended) {
-            canvas.style.display = 'none';
-            return;
-          }
-
-          if (video.videoWidth > 0 && video.videoHeight > 0) {
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const data = frame.data;
-            for (let i = 0; i < data.length; i += 4) {
-              if (data[i] < 32 && data[i + 1] < 32 && data[i + 2] < 32) {
-                data[i + 3] = 0;
-              }
-            }
-            ctx.putImageData(frame, 0, 0);
-          }
-          alphaKeyAnimFrame = requestAnimationFrame(processLumaKeyFrame);
-        }
-
         video.onended = () => {
-          if (alphaKeyAnimFrame) cancelAnimationFrame(alphaKeyAnimFrame);
           canvas.style.display = 'none';
         };
       } else {
@@ -973,7 +997,10 @@
         video.pause();
         video.style.display = 'none';
       }
-      if (textBanner) textBanner.className = 'dynamic-text-banner';
+      if (textBanner) {
+        textBanner.style.display = 'none';
+        textBanner.className = 'dynamic-text-banner';
+      }
       clearPngOverlay();
 
       if (currentRiveInstance) {
