@@ -7,8 +7,8 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>Transparent Landscape Mobile Stream Overlay Source</title>
-  <meta name="description" content="100% Transparent 16:9 landscape mobile stream browser source overlay with WebSockets/PeerJS phone remote control for Rive animations, WebM transparent videos, PNG overlays, clean overlay mode, and passcode security handshake.">
-  <link rel="stylesheet" href="../styles/main.css?v=13.0">
+  <meta name="description" content="100% Transparent 16:9 landscape mobile stream browser source overlay with WebSockets/PeerJS phone remote control for WebGL GPU Shader, Rive animations, WebM transparent videos, PNG overlays, clean overlay mode, and passcode security handshake.">
+  <link rel="stylesheet" href="../styles/main.css?v=14.0">
   <!-- Rive Web Canvas JS Runtime -->
   <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
   <style>
@@ -41,7 +41,7 @@
       pointer-events: auto;
     }
 
-    /* Media Overlay Layers (Rive Canvas, WebM Video & PNG Overlay) */
+    /* Media Overlay Layers (Rive Canvas, WebGL Shader Canvas, Video, Alpha Canvas & PNG Overlay) */
     .media-overlay-container {
       position: fixed;
       inset: 0;
@@ -50,6 +50,14 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      background: transparent !important;
+    }
+
+    #webglCanvas {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: none;
       background: transparent !important;
     }
 
@@ -212,8 +220,9 @@
 </head>
 <body class="transparent-mode" id="overlayBody">
 
-  <!-- Fullscreen Media Overlay Layers (Rive Canvas, WebM Video, Alpha Canvas & PNG Overlay) -->
+  <!-- Fullscreen Media Overlay Layers (Rive Canvas, WebGL Shader Canvas, Video, Alpha Canvas & PNG Overlay) -->
   <div class="media-overlay-container">
+    <canvas id="webglCanvas"></canvas>
     <canvas id="riveCanvas"></canvas>
     <video id="overlayVideo" autoplay playsinline webkit-playsinline muted crossorigin="anonymous"></video>
     <canvas id="alphaCanvas"></canvas>
@@ -244,9 +253,9 @@
       <!-- Quick Action Controls -->
       <div style="display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.4rem;">
         <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem; border-color: rgba(99,102,241,0.5);" onclick="toggleCleanOverlay()">🧹 Toggle Clean Overlay Mode</button>
-        <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="playWebM('../assets/shark_no_bg.webm', 'native')">🦈 Play Shark (shark_no_bg.webm)</button>
-        <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="playWebM('../assets/goldenstarr.webm', 'native')">⭐ Play Golden Star (goldenstarr.webm)</button>
-        <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="playWebM('../assets/dragon_no_bg.webm', 'native')">🐉 Play Dragon (dragon_no_bg.webm)</button>
+        <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="playWebM('../assets/shark_no_bg.webm', 'webgl')">🦈 Play Shark (shark_no_bg.webm)</button>
+        <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="playWebM('../assets/goldenstarr.webm', 'webgl')">⭐ Play Golden Star (goldenstarr.webm)</button>
+        <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="playWebM('../assets/dragon_no_bg.webm', 'webgl')">🐉 Play Dragon (dragon_no_bg.webm)</button>
         <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="playRive('../assets/animation.riv')">🎨 Trigger Rive Animation</button>
         <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="toggleGraphic('lower_third')">🏷️ Toggle Lower Third</button>
         <button class="btn btn-glass" style="justify-content: flex-start; padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="triggerAlert()">🔔 Trigger Subscriber Alert</button>
@@ -326,7 +335,7 @@
     </div>
   </div>
 
-  <script src="../scripts/remote-control.js?v=13.0"></script>
+  <script src="../scripts/remote-control.js?v=14.0"></script>
   <script>
     // Menu Drawer Toggle
     const menuBtn = document.getElementById('menuToggleBtn');
@@ -337,6 +346,12 @@
     let currentRiveInstance = null;
     let textTimeout = null;
     let alphaKeyAnimFrame = null;
+    let webglAnimFrame = null;
+
+    // WebGL Shader Engine State
+    let webglContext = null;
+    let webglProgram = null;
+    let webglTexture = null;
 
     menuBtn.addEventListener('click', () => {
       menuDrawer.classList.toggle('open');
@@ -372,7 +387,7 @@
         case 'play_video':
         case 'play_video1':
         case 'play_video2':
-          playWebM(payload.src || '../assets/shark_no_bg.webm', payload.playbackMode || 'native');
+          playWebM(payload.src || '../assets/shark_no_bg.webm', payload.playbackMode || 'webgl');
           break;
         case 'play_rive':
           playRive(payload.src || '../assets/animation.riv');
@@ -514,24 +529,156 @@
       }
     }
 
-    // Robust Video Player Logic (Guarantees Full 60fps Playback & Prevents Frame 1 Freeze)
-    function playWebM(src = '../assets/shark_no_bg.webm', playbackMode = 'native') {
+    // Initialize Hardware-Accelerated WebGL Texture Shader Engine
+    function initWebGLShader(canvas) {
+      if (webglContext) return webglContext;
+
+      const gl = canvas.getContext('webgl', { alpha: true, premultipliedAlpha: false, preserveDrawingBuffer: true }) || 
+                 canvas.getContext('experimental-webgl', { alpha: true });
+      
+      if (!gl) {
+        console.warn('[WebGL Shader] WebGL context not available.');
+        return null;
+      }
+
+      const vsSource = `
+        attribute vec2 a_position;
+        attribute vec2 a_texCoord;
+        varying vec2 v_texCoord;
+        void main() {
+          gl_Position = vec4(a_position, 0.0, 1.0);
+          v_texCoord = vec2(a_texCoord.x, 1.0 - a_texCoord.y);
+        }
+      `;
+
+      const fsSource = `
+        precision mediump float;
+        uniform sampler2D u_image;
+        varying vec2 v_texCoord;
+        void main() {
+          vec4 texColor = texture2D(u_image, v_texCoord);
+          gl_FragColor = texColor;
+        }
+      `;
+
+      function createShader(gl, type, source) {
+        const shader = gl.createShader(type);
+        gl.shaderSource(shader, source);
+        gl.compileShader(shader);
+        return shader;
+      }
+
+      const vertShader = createShader(gl, gl.VERTEX_SHADER, vsSource);
+      const fragShader = createShader(gl, gl.FRAGMENT_SHADER, fsSource);
+      const program = gl.createProgram();
+      gl.attachShader(program, vertShader);
+      gl.attachShader(program, fragShader);
+      gl.linkProgram(program);
+      gl.useProgram(program);
+
+      const positionBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+        -1, -1,
+         1, -1,
+        -1,  1,
+         1,  1,
+      ]), gl.STATIC_DRAW);
+
+      const positionLocation = gl.getAttribLocation(program, "a_position");
+      gl.enableVertexAttribArray(positionLocation);
+      gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+      const texCoordBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, texCoordBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+        0, 0,
+        1, 0,
+        0, 1,
+        1, 1,
+      ]), gl.STATIC_DRAW);
+
+      const texCoordLocation = gl.getAttribLocation(program, "a_texCoord");
+      gl.enableVertexAttribArray(texCoordLocation);
+      gl.vertexAttribPointer(texCoordLocation, 2, gl.FLOAT, false, 0, 0);
+
+      const texture = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+      webglContext = gl;
+      webglProgram = program;
+      webglTexture = texture;
+      return gl;
+    }
+
+    // Video Player Logic Supporting 4 Selectable Modes (WebGL GPU Shader, Native Alpha, CSS Screen, Canvas Luma Key)
+    function playWebM(src = '../assets/shark_no_bg.webm', playbackMode = 'webgl') {
       const video = document.getElementById('overlayVideo');
       const canvas = document.getElementById('alphaCanvas');
-      if (!video || !canvas) return;
+      const webglCanvas = document.getElementById('webglCanvas');
+      if (!video || !canvas || !webglCanvas) return;
 
       if (alphaKeyAnimFrame) cancelAnimationFrame(alphaKeyAnimFrame);
+      if (webglAnimFrame) cancelAnimationFrame(webglAnimFrame);
 
-      // Reset video decoder state cleanly to prevent frame-0 freeze
       video.pause();
       video.removeAttribute('src');
       video.load();
       video.muted = true;
       video.autoplay = true;
 
-      if (playbackMode === 'lumakey') {
+      if (playbackMode === 'webgl') {
+        // Mode 4: WebGL GPU Texture Shader Engine (Bypasses WebView Video Player Limitations)
+        video.style.display = 'none';
+        canvas.style.display = 'none';
+        webglCanvas.style.display = 'block';
+
+        const gl = initWebGLShader(webglCanvas);
+        video.src = src;
+
+        video.onloadeddata = () => {
+          webglCanvas.width = video.videoWidth || 1280;
+          webglCanvas.height = video.videoHeight || 720;
+          if (gl) gl.viewport(0, 0, webglCanvas.width, webglCanvas.height);
+
+          video.play().then(() => {
+            console.log(`[WebGL GPU Engine] WebGL Texture Shader Active for ${src}`);
+            renderWebGLFrame();
+          }).catch(err => console.warn('[WebGL Engine] Play error:', err));
+        };
+
+        function renderWebGLFrame() {
+          if (video.paused || video.ended) {
+            webglCanvas.style.display = 'none';
+            return;
+          }
+
+          if (gl && video.videoWidth > 0 && video.videoHeight > 0) {
+            gl.bindTexture(gl.TEXTURE_2D, webglTexture);
+            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
+            
+            gl.clearColor(0.0, 0.0, 0.0, 0.0);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+          }
+
+          webglAnimFrame = requestAnimationFrame(renderWebGLFrame);
+        }
+
+        video.onended = () => {
+          if (webglAnimFrame) cancelAnimationFrame(webglAnimFrame);
+          webglCanvas.style.display = 'none';
+        };
+
+      } else if (playbackMode === 'lumakey') {
         // Mode 3: Canvas Luma Key Processor (Strips Black)
         video.style.display = 'none';
+        webglCanvas.style.display = 'none';
         canvas.style.display = 'block';
 
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -572,6 +719,7 @@
       } else {
         // Mode 1: Native HTML5 (As-Is Alpha) or Mode 2: CSS Screen Blend
         canvas.style.display = 'none';
+        webglCanvas.style.display = 'none';
         video.style.display = 'block';
         video.style.setProperty('background', 'transparent', 'important');
         video.style.setProperty('background-color', 'transparent', 'important');
@@ -604,11 +752,14 @@
       const canvas = document.getElementById('riveCanvas');
       const video = document.getElementById('overlayVideo');
       const alphaCanvas = document.getElementById('alphaCanvas');
+      const webglCanvas = document.getElementById('webglCanvas');
       const textBanner = document.getElementById('dynamicTextOverlay');
 
       if (alphaKeyAnimFrame) cancelAnimationFrame(alphaKeyAnimFrame);
+      if (webglAnimFrame) cancelAnimationFrame(webglAnimFrame);
       if (canvas) canvas.style.display = 'none';
       if (alphaCanvas) alphaCanvas.style.display = 'none';
+      if (webglCanvas) webglCanvas.style.display = 'none';
       if (video) {
         video.pause();
         video.style.display = 'none';
