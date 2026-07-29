@@ -7,8 +7,8 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>Transparent Landscape Mobile Stream Overlay Source</title>
-  <meta name="description" content="100% Transparent 16:9 landscape mobile stream browser source overlay with WebSockets/PeerJS phone remote control for Procedural Volcanic Lava GLSL Shader, WebGL GPU Shader, Rive animations, WebM transparent videos, PNG overlays, clean overlay mode, and passcode security handshake.">
-  <link rel="stylesheet" href="../styles/main.css?v=15.0">
+  <meta name="description" content="100% Transparent 16:9 landscape mobile stream browser source overlay with WebSockets/PeerJS phone remote control for In-Memory Blob Preloaded WebGL GPU Shader, Rive animations, WebM transparent videos, PNG overlays, clean overlay mode, and passcode security handshake.">
+  <link rel="stylesheet" href="../styles/main.css?v=16.0">
   <!-- Rive Web Canvas JS Runtime -->
   <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
   <style>
@@ -348,7 +348,7 @@
     </div>
   </div>
 
-  <script src="../scripts/remote-control.js?v=15.0"></script>
+  <script src="../scripts/remote-control.js?v=16.0"></script>
   <script>
     // Menu Drawer Toggle
     const menuBtn = document.getElementById('menuToggleBtn');
@@ -361,6 +361,36 @@
     let alphaKeyAnimFrame = null;
     let webglAnimFrame = null;
     let proceduralShaderAnimFrame = null;
+
+    // In-Memory Blob Preloader Cache (Eliminates Network Latency & URL Loading Freezes)
+    const mediaBlobCache = new Map();
+
+    async function getPreloadedMediaUrl(url) {
+      if (!url) return '';
+      if (url.startsWith('data:') || url.startsWith('blob:')) return url;
+      if (mediaBlobCache.has(url)) return mediaBlobCache.get(url);
+
+      try {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        mediaBlobCache.set(url, blobUrl);
+        console.log(`[Blob Preloader] Successfully cached media blob for: ${url}`);
+        return blobUrl;
+      } catch (err) {
+        console.warn(`[Blob Preloader] Direct URL fallback for ${url}:`, err);
+        return url;
+      }
+    }
+
+    // Auto-preload inventory assets into RAM on startup
+    const preloadList = [
+      '../assets/shark_no_bg.webm',
+      '../assets/goldenstarr.webm',
+      '../assets/dragon_no_bg.webm',
+      '../assets/animation.riv'
+    ];
+    preloadList.forEach(url => getPreloadedMediaUrl(url));
 
     // WebGL Video State
     let webglContext = null;
@@ -676,8 +706,8 @@
       }, 6000);
     }
 
-    // Rive Animation Player Logic
-    function playRive(src = '../assets/animation.riv') {
+    // Rive Animation Player Logic with In-Memory Blob Support
+    async function playRive(src = '../assets/animation.riv') {
       const canvas = document.getElementById('riveCanvas');
       if (!canvas) return;
 
@@ -687,17 +717,19 @@
         currentRiveInstance.cleanup();
       }
 
+      const activeUrl = await getPreloadedMediaUrl(src);
+
       if (window.rive) {
         currentRiveInstance = new window.rive.Rive({
-          src: src,
+          src: activeUrl,
           canvas: canvas,
           autoplay: true,
           onLoad: () => {
-            console.log('[Rive] Animation loaded successfully from:', src);
+            console.log('[Rive] Animation loaded successfully from:', activeUrl);
             currentRiveInstance.resizeDrawingSurfaceToCanvas();
           },
           onLoadError: (err) => {
-            console.warn('[Rive] Could not load .riv file from path:', src, err);
+            console.warn('[Rive] Could not load .riv file from path:', activeUrl, err);
           }
         });
       }
@@ -789,8 +821,8 @@
       return gl;
     }
 
-    // Video Player Logic Supporting 4 Selectable Modes (WebGL GPU Shader, Native Alpha, CSS Screen, Canvas Luma Key)
-    function playWebM(src = '../assets/shark_no_bg.webm', playbackMode = 'webgl') {
+    // Instant Video Player Logic with In-Memory Blob Caching
+    async function playWebM(src = '../assets/shark_no_bg.webm', playbackMode = 'webgl') {
       const video = document.getElementById('overlayVideo');
       const canvas = document.getElementById('alphaCanvas');
       const webglCanvas = document.getElementById('webglCanvas');
@@ -805,6 +837,8 @@
       video.muted = true;
       video.autoplay = true;
 
+      const activeUrl = await getPreloadedMediaUrl(src);
+
       if (playbackMode === 'webgl') {
         // Mode 4: WebGL GPU Texture Shader Engine (Bypasses WebView Video Player Limitations)
         video.style.display = 'none';
@@ -812,7 +846,7 @@
         webglCanvas.style.display = 'block';
 
         const gl = initWebGLShader(webglCanvas);
-        video.src = src;
+        video.src = activeUrl;
 
         video.onloadeddata = () => {
           webglCanvas.width = video.videoWidth || 1280;
@@ -856,7 +890,7 @@
         canvas.style.display = 'block';
 
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        video.src = src;
+        video.src = activeUrl;
 
         video.onloadeddata = () => {
           canvas.width = video.videoWidth || 1280;
@@ -904,7 +938,7 @@
           video.style.mixBlendMode = 'normal';
         }
 
-        video.src = src;
+        video.src = activeUrl;
 
         video.onloadeddata = () => {
           video.play().then(() => {
