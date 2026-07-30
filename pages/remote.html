@@ -552,44 +552,55 @@
       const partyBtn = document.getElementById('btnPlayPartyShader');
       const lavaBtn = document.getElementById('btnPlayLavaShader');
       const starBtn = document.getElementById('btnPlayStarShader');
+      const bdayBtn = document.getElementById('btnPlayBdayShader');
       const stopShaderBtn = document.getElementById('btnStopShader');
       const opacitySlider = document.getElementById('shaderOpacitySlider');
       const opacityValDisplay = document.getElementById('opacityValDisplay');
 
       function clearActiveShaderBtns() {
-        flamesBtn.classList.remove('active');
-        partyBtn.classList.remove('active');
-        lavaBtn.classList.remove('active');
-        starBtn.classList.remove('active');
+        flamesBtn?.classList.remove('active');
+        partyBtn?.classList.remove('active');
+        lavaBtn?.classList.remove('active');
+        starBtn?.classList.remove('active');
+        if (bdayBtn) bdayBtn.classList.remove('active');
       }
 
-      flamesBtn.addEventListener('click', () => {
+      flamesBtn?.addEventListener('click', () => {
         const opacity = parseFloat(opacitySlider.value) || 0.75;
         window.remoteEngine.send('play_procedural_shader', { shader: 'flame_borders', opacity });
         clearActiveShaderBtns();
         flamesBtn.classList.add('active');
       });
 
-      partyBtn.addEventListener('click', () => {
+      partyBtn?.addEventListener('click', () => {
         const opacity = parseFloat(opacitySlider.value) || 0.75;
         window.remoteEngine.send('play_procedural_shader', { shader: 'party_confetti', opacity });
         clearActiveShaderBtns();
         partyBtn.classList.add('active');
       });
 
-      lavaBtn.addEventListener('click', () => {
+      lavaBtn?.addEventListener('click', () => {
         const opacity = parseFloat(opacitySlider.value) || 0.75;
         window.remoteEngine.send('play_procedural_shader', { shader: 'volcanic_lava', opacity });
         clearActiveShaderBtns();
         lavaBtn.classList.add('active');
       });
 
-      starBtn.addEventListener('click', () => {
+      starBtn?.addEventListener('click', () => {
         const opacity = parseFloat(opacitySlider.value) || 0.75;
         window.remoteEngine.send('play_procedural_shader', { shader: 'golden_starburst', opacity });
         clearActiveShaderBtns();
         starBtn.classList.add('active');
       });
+
+      if (bdayBtn) {
+        bdayBtn.addEventListener('click', () => {
+          const opacity = parseFloat(opacitySlider.value) || 0.75;
+          window.remoteEngine.send('play_procedural_shader', { shader: 'happy_birthday', opacity });
+          clearActiveShaderBtns();
+          bdayBtn.classList.add('active');
+        });
+      }
 
       stopShaderBtn.addEventListener('click', () => {
         window.remoteEngine.send('stop_procedural_shader');

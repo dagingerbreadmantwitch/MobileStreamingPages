@@ -428,6 +428,7 @@
     let shaderStarProgram = null;
     let shaderFlamesProgram = null;
     let shaderPartyProgram = null;
+    let shaderBdayProgram = null;
     let currentShaderOpacity = 0.75;
 
     menuBtn.addEventListener('click', () => {
@@ -606,60 +607,158 @@
         }
       `;
 
-      // 3. Escalating Flame Borders GLSL Shader (Top & Bottom Screen Flames, 3 Heat Levels Every 5 Sec)
+      // 3. Escalating Flame Borders GLSL Shader (Top & Bottom Screen Flames, 3 Heat Levels Every 10 Sec)
       const fsFlamesSource = `
         precision mediump float;
         uniform vec2 iResolution;
         uniform float iTime;
         uniform float uOpacity;
 
-        float hash(vec2 p) {
-          return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+        vec2 hash22(vec2 p) {
+            p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
+            return fract(sin(p) * 43758.5453123);
         }
 
         float noise(vec2 p) {
-          vec2 i = floor(p);
-          vec2 f = fract(p);
-          f = f * f * (3.0 - 2.0 * f);
-          return mix(mix(hash(i + vec2(0.0, 0.0)), hash(i + vec2(1.0, 0.0)), f.x),
-                     mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
+            vec2 i = floor(p);
+            vec2 f = fract(p);
+            vec2 u = f * f * (3.0 - 2.0 * f);
+
+            float a = dot(hash22(i + vec2(0.0, 0.0)), f - vec2(0.0, 0.0));
+            float b = dot(hash22(i + vec2(1.0, 0.0)), f - vec2(1.0, 0.0));
+            float c = dot(hash22(i + vec2(0.0, 1.0)), f - vec2(0.0, 1.0));
+            float d = dot(hash22(i + vec2(1.0, 1.0)), f - vec2(1.0, 1.0));
+
+            return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
         }
 
-        float fbm(vec2 p) {
-          float v = 0.0;
-          v += 0.5 * noise(p); p *= 2.01;
-          v += 0.25 * noise(p); p *= 2.02;
-          v += 0.125 * noise(p);
-          return v;
+        float fireTurbulence(vec2 p) {
+            float val = 0.0;
+            float amp = 0.5;
+            mat2 rot = mat2(0.8, 0.6, -0.6, 0.8);
+            
+            for (int i = 0; i < 5; i++) {
+                val += amp * abs(noise(p));
+                p = rot * p * 2.1;
+                amp *= 0.48;
+            }
+            return val;
+        }
+
+        // Flame density with scale parameter for growth control
+        float getFireDensity(vec2 uv, float speed, float aspect, float flameScale) {
+            // Modify coordinate space by the current flame size scale
+            vec2 p = vec2(uv.x * aspect * 3.0, (uv.y / flameScale) * 1.5);
+            
+            float time = iTime * speed;
+            
+            // Domain warping
+            vec2 q = vec2(0.0);
+            q.x = fireTurbulence(p + vec2(0.0, time * 0.5));
+            q.y = fireTurbulence(p + vec2(1.3, time * 0.3));
+
+            vec2 r = vec2(0.0);
+            r.x = fireTurbulence(p + 1.2 * q + vec2(1.7, 9.2) + 0.15 * time);
+            r.y = fireTurbulence(p + 1.2 * q + vec2(8.3, 2.8) + 0.12 * time);
+
+            float n = fireTurbulence(p + r * 1.8);
+            
+            // Natural smooth distance fade
+            float fade = smoothstep(0.6 * flameScale, 0.01, uv.y);
+            return max(0.0, (1.0 - n * 1.2)) * fade;
+        }
+
+        float getEmbers(vec2 uv, float speed, float flameScale) {
+            float spark = 0.0;
+            vec2 p = uv * vec2(15.0, 5.0 / flameScale);
+            
+            for (float i = 1.0; i < 4.0; i++) {
+                vec2 id = floor(p + vec2(i * 12.3, 0.0));
+                vec2 rand = hash22(id);
+                
+                float posY = fract(rand.y + iTime * 0.25 * speed * (0.5 + rand.x));
+                vec2 pos = vec2(rand.x, posY);
+                
+                float dist = length(fract(p) - pos);
+                spark += smoothstep(0.05, 0.0, dist) * (0.4 + 0.6 * sin(iTime * 12.0 + rand.x * 6.28));
+            }
+            return spark;
         }
 
         void main() {
-          vec2 uv = gl_FragCoord.xy / iResolution.xy;
+            vec2 fragCoord = gl_FragCoord.xy;
+            vec2 uv = fragCoord / iResolution.xy;
+            float aspect = iResolution.x / iResolution.y;
 
-          // 5-second heat escalation level (Level 0 -> 1 -> 2 -> reset to 0)
-          float cycleTime = mod(iTime, 15.0);
-          float heatLevel = floor(cycleTime / 5.0);
-          if (heatLevel > 2.0) heatLevel = 0.0;
+            // --- 10-SECOND 3-LEVEL GROWTH CYCLE ---
+            float loopTime = mod(iTime, 10.0);
+            
+            // Scaled down by 60% (multiplied original levels by 0.40)
+            float lvl1 = 0.14; // Small baseline fire (was 0.35)
+            float lvl2 = 0.28; // Medium roaring fire (was 0.70)
+            float lvl3 = 0.48; // Full edge fire (was 1.20)
+            
+            float flameScale = lvl1;
+            
+            if (loopTime < 3.0) {
+                // Stage 1: Transition Level 1 -> Level 2 over 3s
+                float t = smoothstep(0.0, 3.0, loopTime);
+                flameScale = mix(lvl1, lvl2, t);
+            } else if (loopTime < 7.0) {
+                // Stage 2: Transition Level 2 -> Level 3 over 4s
+                float t = smoothstep(3.0, 7.0, loopTime);
+                flameScale = mix(lvl2, lvl3, t);
+            } else {
+                // Stage 3: Hold Level 3 peak until second 10, then reset
+                flameScale = lvl3;
+            }
 
-          float heightScale = 0.07 + heatLevel * 0.12; // Level 0: 20px, Level 1: ~50px, Level 2: ~80px
-          float speed = 1.4 + heatLevel * 0.9;
+            float distBottom = uv.y;
+            float distTop = 1.0 - uv.y;
 
-          float distTop = 1.0 - uv.y;
-          float distBottom = uv.y;
-          float minDist = min(distTop, distBottom);
+            // --- EVALUATE FIRE DENSITY WITH CURRENT LEVEL SCALE ---
+            float fireB = getFireDensity(vec2(uv.x, distBottom), 1.1, aspect, flameScale);
+            float fireT = getFireDensity(vec2(uv.x + 0.4, distTop), 0.9, aspect, flameScale);
 
-          vec2 st = vec2(uv.x * 6.0, minDist / heightScale - iTime * speed);
-          float n = fbm(st + vec2(fbm(st * 2.0), 0.0));
-          float flame = smoothstep(1.0, 0.0, minDist / (heightScale * (0.4 + n * 0.9)));
+            // Color Palette
+            vec3 cSmoke    = vec3(0.08, 0.01, 0.00);
+            vec3 cDeepRed  = vec3(0.65, 0.05, 0.00);
+            vec3 cOrange   = vec3(1.00, 0.35, 0.00);
+            vec3 cYellow   = vec3(1.00, 0.82, 0.10);
+            vec3 cWhite    = vec3(1.00, 0.98, 0.85);
 
-          if (flame > 0.02) {
-            vec3 col = mix(vec3(1.0, 0.15, 0.0), vec3(1.0, 0.85, 0.1), flame);
-            col = mix(col, vec3(1.0, 0.98, 0.85), pow(flame, 2.5));
-            float alpha = clamp(flame * uOpacity, 0.0, uOpacity);
+            vec3 col = vec3(0.0);
+
+            // Bottom Fire
+            if (fireB > 0.0) {
+                vec3 colB = mix(cSmoke, cDeepRed, smoothstep(0.0, 0.2, fireB));
+                colB = mix(colB, cOrange, smoothstep(0.2, 0.45, fireB));
+                colB = mix(colB, cYellow, smoothstep(0.45, 0.75, fireB));
+                colB = mix(colB, cWhite,  smoothstep(0.75, 1.0, fireB));
+                col += colB * fireB;
+            }
+
+            // Top Fire
+            if (fireT > 0.0) {
+                vec3 colT = mix(cSmoke, cDeepRed, smoothstep(0.0, 0.2, fireT));
+                colT = mix(colT, cOrange, smoothstep(0.2, 0.45, fireT));
+                colT = mix(colT, cYellow, smoothstep(0.45, 0.75, fireT));
+                colT = mix(colT, cWhite,  smoothstep(0.75, 1.0, fireT));
+                col += colT * fireT;
+            }
+
+            // Embers scale up with the fire level
+            float sparkB = getEmbers(uv, 1.0, flameScale) * smoothstep(0.5 * flameScale, 0.0, distBottom);
+            float sparkT = getEmbers(vec2(uv.x, 1.0 - uv.y), 1.0, flameScale) * smoothstep(0.5 * flameScale, 0.0, distTop);
+            col += cYellow * (sparkB + sparkT);
+
+            // Gamma correction
+            col = pow(col, vec3(0.85));
+
+            float maxVal = max(col.r, max(col.g, col.b));
+            float alpha = clamp(maxVal * uOpacity, 0.0, uOpacity);
+
             gl_FragColor = vec4(col, alpha);
-          } else {
-            gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
-          }
         }
       `;
 
@@ -694,12 +793,145 @@
             if (d < size) {
               vec3 pCol = 0.5 + 0.5 * cos(i * 1.8 + vec3(0.0, 2.0, 4.0));
               confettiCol = pCol * (1.0 - d / size);
-            }
-          }
-
-          vec3 finalColor = bgGlow + confettiCol;
+            vec3 finalColor = bgGlow + confettiCol;
           float alpha = clamp(length(finalColor) * uOpacity, 0.0, uOpacity);
           gl_FragColor = vec4(finalColor, alpha);
+        }
+      `;
+
+      // 5. Happy Birthday GLSL Shader (Center-Aligned Vector Text + Motion & Soft Glow)
+      const fsBdaySource = `
+        precision mediump float;
+        uniform vec2 iResolution;
+        uniform float iTime;
+        uniform float uOpacity;
+
+        // Distance to line segment
+        float sdSegment(vec2 p, vec2 a, vec2 b) {
+            vec2 pa = p - a, ba = b - a;
+            float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+            return length(pa - ba * h);
+        }
+
+        // Distance to semicircular arc
+        float sdSemiCircle(vec2 p, vec2 center, float radius) {
+            vec2 q = p - center;
+            if (q.x > 0.0) {
+                return abs(length(q) - radius);
+            }
+            return min(length(q - vec2(0.0, radius)), length(q - vec2(0.0, -radius)));
+        }
+
+        // --- LETTER DEFINITIONS ---
+        float drawH(vec2 p) {
+            float d = sdSegment(p, vec2(-0.2, -0.4), vec2(-0.2, 0.4));
+            d = min(d, sdSegment(p, vec2( 0.2, -0.4), vec2( 0.2, 0.4)));
+            d = min(d, sdSegment(p, vec2(-0.2,  0.0), vec2( 0.2, 0.0)));
+            return d;
+        }
+        float drawA(vec2 p) {
+            float d = sdSegment(p, vec2(-0.2, -0.4), vec2(0.0, 0.4));
+            d = min(d, sdSegment(p, vec2(0.0, 0.4), vec2(0.2, -0.4)));
+            d = min(d, sdSegment(p, vec2(-0.1, 0.0), vec2(0.1, 0.0)));
+            return d;
+        }
+        float drawP(vec2 p) {
+            float d = sdSegment(p, vec2(-0.2, -0.4), vec2(-0.2, 0.4));
+            d = min(d, sdSemiCircle(p, vec2(-0.2, 0.2), 0.2));
+            return d;
+        }
+        float drawY(vec2 p) {
+            float d = sdSegment(p, vec2(-0.2, 0.4), vec2(0.0, 0.0));
+            d = min(d, sdSegment(p, vec2(0.2, 0.4), vec2(0.0, 0.0)));
+            d = min(d, sdSegment(p, vec2(0.0, 0.0), vec2(0.0, -0.4)));
+            return d;
+        }
+        float drawB(vec2 p) {
+            float d = sdSegment(p, vec2(-0.2, -0.4), vec2(-0.2, 0.4));
+            d = min(d, sdSemiCircle(p, vec2(-0.2, 0.2), 0.2));
+            d = min(d, sdSemiCircle(p, vec2(-0.2, -0.2), 0.2));
+            return d;
+        }
+        float drawI(vec2 p) {
+            float d = sdSegment(p, vec2(0.0, -0.4), vec2(0.0, 0.4));
+            d = min(d, sdSegment(p, vec2(-0.15, 0.4), vec2(0.15, 0.4)));
+            d = min(d, sdSegment(p, vec2(-0.15, -0.4), vec2(0.15, -0.4)));
+            return d;
+        }
+        float drawR(vec2 p) {
+            float d = sdSegment(p, vec2(-0.2, -0.4), vec2(-0.2, 0.4));
+            d = min(d, sdSemiCircle(p, vec2(-0.2, 0.2), 0.2));
+            d = min(d, sdSegment(p, vec2(-0.2, 0.0), vec2(0.2, -0.4)));
+            return d;
+        }
+        float drawT(vec2 p) {
+            float d = sdSegment(p, vec2(0.0, -0.4), vec2(0.0, 0.4));
+            d = min(d, sdSegment(p, vec2(-0.25, 0.4), vec2(0.25, 0.4)));
+            return d;
+        }
+        float drawD(vec2 p) {
+            float d = sdSegment(p, vec2(-0.2, -0.4), vec2(-0.2, 0.4));
+            d = min(d, sdSemiCircle(p, vec2(-0.2, 0.0), 0.4));
+            return d;
+        }
+
+        // --- WORD COMPOSITION (CENTER ALIGNED) ---
+        float sdHappy(vec2 p) {
+            // Shifted +0.20 to center-align the updated width
+            p.x -= 0.20; 
+            float d = drawH(p - vec2(-1.2, 0.0));
+            d = min(d, drawA(p - vec2(-0.6, 0.0)));
+            d = min(d, drawP(p - vec2( 0.0, 0.0)));
+            d = min(d, drawP(p - vec2( 0.45, 0.0)));
+            d = min(d, drawY(p - vec2( 0.8, 0.0)));
+            return d;
+        }
+
+        float sdBirthday(vec2 p) {
+            // Shifted -0.175 to center-align the updated width
+            p.x += 0.175; 
+            float d = drawB(p - vec2(-1.60, 0.0));
+            d = min(d, drawI(p - vec2(-1.30, 0.0)));
+            d = min(d, drawR(p - vec2(-0.80, 0.0)));
+            d = min(d, drawT(p - vec2(-0.35, 0.0)));
+            d = min(d, drawH(p - vec2( 0.30, 0.0)));
+            d = min(d, drawD(p - vec2( 0.85, 0.0)));
+            d = min(d, drawA(p - vec2( 1.40, 0.0)));
+            d = min(d, drawY(p - vec2( 1.95, 0.0)));
+            return d;
+        }
+
+        void main() {
+            vec2 fragCoord = gl_FragCoord.xy;
+            // Unified UV coordinates
+            vec2 uv = (fragCoord - 0.5 * iResolution.xy) / iResolution.y;
+
+            // Gently floating motion
+            vec2 textUV = uv;
+            textUV.y += sin(iTime * 2.0) * 0.02;
+
+            // Evaluate distance fields
+            float dHappy = sdHappy((textUV - vec2(0.0, 0.20)) * 3.5);
+            float dBday  = sdBirthday((textUV - vec2(0.0, -0.18)) * 4.5);
+            float dText  = min(dHappy, dBday);
+
+            // Stroke definition & outer soft glow
+            float thickness = 0.055;
+            float aa = 0.005;
+            float textMask = smoothstep(thickness + aa, thickness - aa, dText);
+            float glowMask = smoothstep(0.30, 0.0, dText) * 0.6;
+
+            // Animated text color & glow color
+            vec3 textBaseColor = 0.5 + 0.5 * cos(iTime * 2.5 + uv.xyx * 2.0 + vec3(0.0, 2.0, 4.0));
+            vec3 glowColor = vec3(1.0, 0.8, 0.3);
+
+            // Combine color channels
+            vec3 color = mix(glowColor * glowMask, textBaseColor, textMask);
+
+            // Alpha channel: ONLY the text and its glow are visible
+            float alpha = max(textMask, glowMask) * uOpacity;
+
+            gl_FragColor = vec4(color, alpha);
         }
       `;
 
@@ -724,6 +956,7 @@
       shaderStarProgram = createProgram(gl, vsSource, fsStarSource);
       shaderFlamesProgram = createProgram(gl, vsSource, fsFlamesSource);
       shaderPartyProgram = createProgram(gl, vsSource, fsPartySource);
+      shaderBdayProgram = createProgram(gl, vsSource, fsBdaySource);
 
       const buffer = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
@@ -754,6 +987,7 @@
       if (shaderName === 'golden_starburst') targetProgram = shaderStarProgram;
       if (shaderName === 'flame_borders') targetProgram = shaderFlamesProgram;
       if (shaderName === 'party_confetti') targetProgram = shaderPartyProgram;
+      if (shaderName === 'happy_birthday') targetProgram = shaderBdayProgram;
 
       const startTime = performance.now();
 
@@ -763,7 +997,7 @@
       const posLoc = gl.getAttribLocation(targetProgram, "a_position");
 
       runHybridLoop((now) => {
-        if (!isShaderActive || canvas.style.display === 'none') return;
+        if (!isShaderActive || canvas.style.display === 'none' || activeShaderName !== shaderName) return;
 
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
