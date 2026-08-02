@@ -1194,8 +1194,8 @@
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         isCityTextureLoaded = true;
       };
-      // High-res City of Domes image generated artifact asset
-      img.src = 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/60/Florence_Domo_15th_Century.jpg/800px-Florence_Domo_15th_Century.jpg';
+      // Load local asset image "City of Domes.PNG"
+      img.src = '../assets/City of Domes.PNG';
     }
 
     function playProceduralShader(shaderName = 'volcanic_lava', opacity = 0.75) {
@@ -1275,7 +1275,8 @@
       if (!canvas) return;
 
       canvas.className = `${position || 'pos-top-right'}`;
-      canvas.style.display = 'block';
+      // Keep canvas hidden while model is loading so un-animated default state isn't shown
+      canvas.style.display = 'none';
       glbAnimMode = animStyle;
 
       if (!glbRenderer) {
@@ -1328,13 +1329,16 @@
           const action = glbMixer.clipAction(gltf.animations[0]);
           action.play();
         }
+
+        // Display canvas only AFTER model is centered & animation transforms applied
+        canvas.style.display = 'block';
+
+        if (!glbAnimFrameId) {
+          animateGlbScene();
+        }
       }, undefined, (err) => {
         console.error("Error loading GLB model:", err);
       });
-
-      if (!glbAnimFrameId) {
-        animateGlbScene();
-      }
     }
 
     function animateGlbScene() {
