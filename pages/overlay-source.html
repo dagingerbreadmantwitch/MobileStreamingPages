@@ -9,6 +9,9 @@
   <title>Transparent Landscape Mobile Stream Overlay Source</title>
   <meta name="description" content="100% Transparent 16:9 landscape mobile stream browser source overlay with WebSockets/PeerJS phone remote control for Escalating Flame Borders Shader, Party Confetti Filter, GPU Texture Buffer Shaders, Procedural GLSL Shaders, Rive animations, WebM transparent videos, PNG overlays, clean overlay mode, and passcode security handshake.">
   <link rel="stylesheet" href="../styles/main.css?v=20.0">
+  <!-- Three.js & GLTFLoader for 3D GLB Model Overlay -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
   <!-- Rive Web Canvas JS Runtime -->
   <script src="https://unpkg.com/@rive-app/canvas@latest"></script>
   <style>
@@ -231,11 +234,29 @@
 </head>
 <body class="transparent-mode" id="overlayBody">
 
-  <!-- Fullscreen Media Overlay Layers (Procedural GLSL Shader Canvas, Rive Canvas, WebGL Video Canvas, Video, Alpha Canvas & PNG Overlay) -->
+  <style>
+    /* 3D GLB Overlay Canvas Styling */
+    #glbCanvas {
+      position: absolute;
+      width: 280px;
+      height: 280px;
+      pointer-events: none;
+      display: none;
+      z-index: 12;
+      transition: all 0.4s ease;
+    }
+    #glbCanvas.pos-top-left { top: 20px; left: 20px; bottom: auto; right: auto; }
+    #glbCanvas.pos-top-right { top: 20px; right: 20px; bottom: auto; left: auto; }
+    #glbCanvas.pos-bottom-left { bottom: 20px; left: 20px; top: auto; right: auto; }
+    #glbCanvas.pos-bottom-right { bottom: 20px; right: 20px; top: auto; left: auto; }
+  </style>
+
+  <!-- Fullscreen Media Overlay Layers (Procedural GLSL Shader Canvas, Rive Canvas, WebGL Video Canvas, Video, Alpha Canvas, 3D GLB Canvas & PNG Overlay) -->
   <div class="media-overlay-container">
     <canvas id="shaderCanvas"></canvas>
     <canvas id="webglCanvas"></canvas>
     <canvas id="riveCanvas"></canvas>
+    <canvas id="glbCanvas"></canvas>
     <video id="overlayVideo" autoplay playsinline webkit-playsinline muted crossorigin="anonymous"></video>
     <canvas id="alphaCanvas"></canvas>
     <img id="pngOverlayImage" class="png-overlay-image" alt="PNG Overlay">
@@ -455,6 +476,15 @@
           break;
         case 'update_shader_opacity':
           currentShaderOpacity = payload.opacity || 0.75;
+          break;
+        case 'play_glb_model':
+          playGlbModel(payload.src || '../assets/Meshy_AI_City_of_Domes_and_Tow_0801094424_texture.glb', payload.position || 'pos-top-right', payload.animation || 'spin_yaw');
+          break;
+        case 'stop_glb_model':
+          stopGlbModel();
+          break;
+        case 'update_glb_anim':
+          updateGlbAnim(payload.animation, payload.position);
           break;
         case 'show_png_overlay':
           showPngOverlay(payload.src, payload.position, payload.duration);
@@ -938,6 +968,171 @@
         }
       `;
 
+      // 6. 3D Spinning Disc Shader (City of Domes PNG/Texture + Single Sparkle Flare)
+      const fsDiscSource = `
+        precision mediump float;
+        uniform vec2 iResolution;
+        uniform float iTime;
+        uniform float uOpacity;
+        uniform sampler2D uTexture;
+        uniform bool uHasTexture;
+
+        // 3D rotation matrix
+        mat3 rotationMatrix(vec3 axis, float angle) {
+            axis = normalize(axis);
+            float s = sin(angle);
+            float c = cos(angle);
+            float oc = 1.0 - c;
+            
+            return mat3(
+                oc * axis.x * axis.x + c,           oc * axis.x * axis.y - axis.z * s,  oc * axis.z * axis.x + axis.y * s,
+                oc * axis.x * axis.y + axis.z * s,  oc * axis.y * axis.y + c,           oc * axis.y * axis.z - axis.x * s,
+                oc * axis.z * axis.x - axis.y * s,  oc * axis.y * axis.z + axis.x * s,  oc * axis.z * axis.z + c
+            );
+        }
+
+        // Pseudo-random number generator for positioning the single sparkle
+        float hash21(vec2 p) {
+            p = fract(p * vec2(123.34, 456.21));
+            p += dot(p, p + 45.32);
+            return fract(p.x * p.y);
+        }
+
+        // Draws a single, high-quality sparkle/flare
+        float singleStarSDF(vec2 uv) {
+            float d = length(uv);
+            // Center glowing core
+            float m = 0.03 / (d + 0.001); 
+            
+            // Axis rays (up/down/left/right)
+            float rays = max(0.0, 1.0 - abs(uv.x * uv.y * 150.0));
+            m += rays * 1.5;
+            
+            // Diagonal rays
+            vec2 uvDiag = uv * mat2(0.7071, -0.7071, 0.7071, 0.7071);
+            float diag = max(0.0, 1.0 - abs(uvDiag.x * uvDiag.y * 400.0));
+            m += diag * 0.5;
+            
+            // Soft fade at outer radius
+            m *= smoothstep(0.8, 0.1, d);
+            return m;
+        }
+
+        // --- FALLBACK PLACEHOLDER PATTERN ---
+        vec3 getPlaceholderPattern(vec2 uv) {
+            float size = 8.0;
+            vec2 gridUV = fract(uv * size);
+            float check = step(0.5, gridUV.x) != step(0.5, gridUV.y) ? 1.0 : 0.0;
+            
+            vec3 colA = vec3(0.1, 0.2, 0.4);
+            vec3 colB = vec3(0.9);
+            vec3 col = mix(colA, colB, check);
+            
+            float thickness = 0.02;
+            float aa = 0.005;
+            float crosshair = smoothstep(thickness+aa, thickness, abs(uv.x - 0.5));
+            crosshair += smoothstep(thickness+aa, thickness, abs(uv.y - 0.5));
+            
+            return mix(col, vec3(1.0, 0.5, 0.0), clamp(crosshair, 0.0, 1.0));
+        }
+
+        void main() {
+            vec2 fragCoord = gl_FragCoord.xy;
+            vec2 uv = (fragCoord.xy - 0.5 * iResolution.xy) / iResolution.y;
+
+            // --- 1. Render 3D Spinning Disc ---
+            vec3 cameraOrigin = vec3(0.0, 0.0, -3.0);
+            vec3 rayDirection = normalize(vec3(uv, 1.5));
+            vec3 planeCenter = vec3(0.0, 0.0, 0.0);
+            
+            vec3 spinAxis = vec3(0.2, 1.0, 0.1); 
+            float spinSpeed = iTime * 2.5; 
+            mat3 rotMat = rotationMatrix(spinAxis, spinSpeed);
+
+            vec3 normal = rotMat * vec3(0.0, 0.0, 1.0);
+            vec3 tangent = rotMat * vec3(1.0, 0.0, 0.0);
+            vec3 bitangent = rotMat * vec3(0.0, 1.0, 0.0);
+
+            float denom = dot(rayDirection, normal);
+            float discRadius = 0.8;
+            vec3 finalColor = vec3(0.0); // Base background
+            float alpha = 0.0;
+
+            // Intersect Ray with 3D Plane
+            if (abs(denom) > 1e-6) {
+                float t = dot(planeCenter - cameraOrigin, normal) / denom;
+
+                if (t > 0.0) {
+                    vec3 intersectionPoint = cameraOrigin + t * rayDirection;
+                    vec3 hitOffset = intersectionPoint - planeCenter;
+                    
+                    // Convert to Local 2D coordinates on the surface of the disc
+                    float localU = dot(hitOffset, tangent);
+                    float localV = dot(hitOffset, bitangent);
+                    
+                    // Normalize to 0.0 - 1.0 space
+                    localU = (localU / discRadius) * 0.5 + 0.5;
+                    localV = (localV / discRadius) * 0.5 + 0.5;
+
+                    float distFromCenter = length(vec2(localU, localV) - 0.5);
+                    
+                    // If we are INSIDE the circle bounds, draw the image and the sparkle
+                    if (distFromCenter < 0.5) {
+                        alpha = uOpacity;
+                        // 1. Draw Texture Image (City of Domes) or Fallback Placeholder
+                        if (uHasTexture) {
+                            vec4 texCol = texture2D(uTexture, vec2(localU, localV));
+                            finalColor = texCol.rgb;
+                        } else {
+                            finalColor = getPlaceholderPattern(vec2(localU, localV));
+                        }
+                        
+                        // 2. ONE SPARKLE AT A TIME LOGIC
+                        // Loop every 20 seconds
+                        float cycleTime = mod(iTime, 20.0);
+                        
+                        // Only run the sparkle for the first 1.5 seconds of the cycle
+                        if (cycleTime < 1.5) {
+                            // Create a unique ID for this 20s chunk to randomize position
+                            float cycleID = floor(iTime / 20.0); 
+                            
+                            // Generate a random angle and radius (keep radius under 0.4 so it doesn't clip the edge)
+                            float angle = hash21(vec2(cycleID, 1.23)) * 6.2831;
+                            float radius = hash21(vec2(cycleID, 4.56)) * 0.4;
+                            vec2 sparkPos = vec2(0.5) + vec2(cos(angle), sin(angle)) * radius;
+                            
+                            // Offset local UV to center the sparkle
+                            vec2 sparkUV = (vec2(localU, localV) - sparkPos) * 6.0;
+                            
+                            // Smooth fade in/out over 1.5 seconds
+                            float pulse = sin(cycleTime * 3.14159 / 1.5); 
+                            
+                            // Rapid twinkling effect
+                            float twinkle = mix(0.6, 1.2, sin(cycleTime * 40.0)); 
+                            
+                            // Render Sparkle SDF
+                            float starIntensity = singleStarSDF(sparkUV);
+                            vec3 sparkColor = vec3(1.0, 0.95, 0.8); // Warm magical white
+                            
+                            // Additively blend the sparkle on top of the image
+                            finalColor += starIntensity * pulse * twinkle * sparkColor;
+                        }
+                        
+                        // 3. Draw Edge Rim and Shadows
+                        float edgeRim = smoothstep(0.485, 0.498, distFromCenter);
+                        finalColor = mix(finalColor, vec3(1.0, 0.85, 0.4), edgeRim);
+                        
+                        float nDotView = abs(denom);
+                        finalColor *= mix(0.5, 1.25, nDotView);
+                    }
+                }
+            }
+
+            // Output Gamma Corrected Alpha Transparent Color
+            gl_FragColor = vec4(pow(finalColor, vec3(1.0/2.2)), alpha);
+        }
+      `;
+
       function createShader(gl, type, source) {
         const shader = gl.createShader(type);
         gl.shaderSource(shader, source);
@@ -960,6 +1155,10 @@
       shaderFlamesProgram = createProgram(gl, vsSource, fsFlamesSource);
       shaderPartyProgram = createProgram(gl, vsSource, fsPartySource);
       shaderBdayProgram = createProgram(gl, vsSource, fsBdaySource);
+      shaderDiscProgram = createProgram(gl, vsSource, fsDiscSource);
+
+      // Load City of Domes PNG/Image into WebGL Texture Buffer
+      loadCityOfDomesTexture(gl);
 
       const buffer = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
@@ -972,6 +1171,31 @@
 
       shaderGl = gl;
       return gl;
+    }
+
+    let cityTexture = null;
+    let isCityTextureLoaded = false;
+
+    function loadCityOfDomesTexture(gl) {
+      if (cityTexture) return;
+      cityTexture = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, cityTexture);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255, 128, 0, 255]));
+
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        gl.bindTexture(gl.TEXTURE_2D, cityTexture);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        isCityTextureLoaded = true;
+      };
+      // High-res City of Domes image generated artifact asset
+      img.src = 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/60/Florence_Domo_15th_Century.jpg/800px-Florence_Domo_15th_Century.jpg';
     }
 
     function playProceduralShader(shaderName = 'volcanic_lava', opacity = 0.75) {
@@ -991,6 +1215,7 @@
       if (shaderName === 'flame_borders') targetProgram = shaderFlamesProgram;
       if (shaderName === 'party_confetti') targetProgram = shaderPartyProgram;
       if (shaderName === 'happy_birthday') targetProgram = shaderBdayProgram;
+      if (shaderName === 'disc_city_of_domes') targetProgram = shaderDiscProgram;
 
       const startTime = performance.now();
 
@@ -1014,6 +1239,19 @@
         gl.uniform1f(timeLoc, (now - startTime) * 0.001);
         gl.uniform1f(opacityLoc, currentShaderOpacity);
 
+        if (targetProgram === shaderDiscProgram) {
+          const texLoc = gl.getUniformLocation(targetProgram, "uTexture");
+          const hasTexLoc = gl.getUniformLocation(targetProgram, "uHasTexture");
+          if (isCityTextureLoaded && cityTexture) {
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, cityTexture);
+            gl.uniform1i(texLoc, 0);
+            gl.uniform1i(hasTexLoc, 1);
+          } else {
+            gl.uniform1i(hasTexLoc, 0);
+          }
+        }
+
         gl.clearColor(0.0, 0.0, 0.0, 0.0);
         gl.clear(gl.COLOR_BUFFER_BIT);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -1024,6 +1262,121 @@
       isShaderActive = false;
       const canvas = document.getElementById('shaderCanvas');
       if (canvas) canvas.style.display = 'none';
+    }
+
+    // 3D GLB Model View Overlay Engine (Three.js Renderer)
+    let glbScene = null, glbCamera = null, glbRenderer = null, glbModel = null, glbMixer = null;
+    let glbAnimMode = 'spin_yaw';
+    let glbAnimFrameId = null;
+    let glbClock = null;
+
+    function playGlbModel(src = '../assets/Meshy_AI_City_of_Domes_and_Tow_0801094424_texture.glb', position = 'pos-top-right', animStyle = 'spin_yaw') {
+      const canvas = document.getElementById('glbCanvas');
+      if (!canvas) return;
+
+      canvas.className = `${position || 'pos-top-right'}`;
+      canvas.style.display = 'block';
+      glbAnimMode = animStyle;
+
+      if (!glbRenderer) {
+        glbScene = new THREE.Scene();
+        glbCamera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
+        glbCamera.position.set(0, 0, 3.5);
+
+        glbRenderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
+        glbRenderer.setSize(280, 280);
+        glbRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
+        glbScene.add(ambientLight);
+
+        const dirLight1 = new THREE.DirectionalLight(0xffffff, 1.5);
+        dirLight1.position.set(5, 10, 7);
+        glbScene.add(dirLight1);
+
+        const dirLight2 = new THREE.DirectionalLight(0x3b82f6, 0.8);
+        dirLight2.position.set(-5, -5, -5);
+        glbScene.add(dirLight2);
+
+        glbClock = new THREE.Clock();
+      }
+
+      // Remove existing model if loaded
+      if (glbModel) {
+        glbScene.remove(glbModel);
+        glbModel = null;
+      }
+
+      const loader = new THREE.GLTFLoader();
+      loader.load(src, (gltf) => {
+        glbModel = gltf.scene;
+
+        // Auto-center and normalize bounding box scale
+        const box = new THREE.Box3().setFromObject(glbModel);
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const scale = 2.0 / (maxDim || 1.0);
+
+        glbModel.position.sub(center.multiplyScalar(scale));
+        glbModel.scale.set(scale, scale, scale);
+
+        glbScene.add(glbModel);
+
+        if (gltf.animations && gltf.animations.length > 0) {
+          glbMixer = new THREE.AnimationMixer(glbModel);
+          const action = glbMixer.clipAction(gltf.animations[0]);
+          action.play();
+        }
+      }, undefined, (err) => {
+        console.error("Error loading GLB model:", err);
+      });
+
+      if (!glbAnimFrameId) {
+        animateGlbScene();
+      }
+    }
+
+    function animateGlbScene() {
+      glbAnimFrameId = requestAnimationFrame(animateGlbScene);
+
+      const delta = glbClock ? glbClock.getDelta() : 0.016;
+      const elapsedTime = glbClock ? glbClock.getElapsedTime() : performance.now() * 0.001;
+
+      if (glbMixer) glbMixer.update(delta);
+
+      if (glbModel) {
+        if (glbAnimMode === 'spin_yaw' || glbAnimMode === 'spin_left_right') {
+          glbModel.rotation.y += delta * 1.5;
+          glbModel.position.y = Math.sin(elapsedTime * 2.0) * 0.08;
+        } else if (glbAnimMode === 'hover_only') {
+          glbModel.position.y = Math.sin(elapsedTime * 2.5) * 0.15;
+          glbModel.rotation.z = Math.sin(elapsedTime * 1.5) * 0.05;
+        } else if (glbAnimMode === 'pitch_roll_bounce') {
+          glbModel.rotation.x = Math.sin(elapsedTime * 1.8) * 0.2;
+          glbModel.rotation.y = Math.cos(elapsedTime * 2.2) * 0.4;
+          glbModel.position.y = Math.sin(elapsedTime * 3.0) * 0.12;
+        }
+      }
+
+      if (glbRenderer && glbScene && glbCamera) {
+        glbRenderer.render(glbScene, glbCamera);
+      }
+    }
+
+    function updateGlbAnim(animStyle = 'spin_yaw', position = 'pos-top-right') {
+      const canvas = document.getElementById('glbCanvas');
+      if (canvas) canvas.className = `${position || 'pos-top-right'}`;
+      glbAnimMode = animStyle;
+    }
+
+    function stopGlbModel() {
+      const canvas = document.getElementById('glbCanvas');
+      if (canvas) canvas.style.display = 'none';
+      if (glbAnimFrameId) {
+        cancelAnimationFrame(glbAnimFrameId);
+        glbAnimFrameId = null;
+      }
     }
 
     // PNG Graphic Overlay Engine

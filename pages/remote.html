@@ -321,6 +321,13 @@
             <span>Golden Starburst</span>
             <span style="font-size: 0.7rem; opacity: 0.8; font-family: var(--font-mono);">Math Particle GLSL Shader</span>
           </button>
+
+          <!-- 3D Spinning Disc Shader (City of Domes) -->
+          <button class="touch-btn btn-flames" id="btnPlayDiscShader" style="padding: 1rem;">
+            <span class="icon">🏛️</span>
+            <span>City of Domes 3D Disc</span>
+            <span style="font-size: 0.7rem; opacity: 0.8; font-family: var(--font-mono);">Spinning Disc Shader + Sparkle</span>
+          </button>
           
         </div>
 
@@ -339,7 +346,39 @@
       </div>
     </div>
 
-    <!-- 4. Chroma Key Green Screen Color Customizer -->
+    <!-- 4. 3D GLB Model View Overlay Control -->
+    <h3 class="section-title">🧊 3D GLB Model Corner Overlay</h3>
+    <div class="glass-card" style="margin-bottom: 1.5rem;">
+      <div style="display: flex; flex-direction: column; gap: 1rem;">
+        <div style="display: flex; gap: 0.8rem; align-items: center; flex-wrap: wrap;">
+          <label style="font-size: 0.85rem; font-weight: 600;">Position Corner:</label>
+          <select id="glbPositionSelect" class="btn btn-glass" style="padding: 0.5rem; background: rgba(0,0,0,0.5);">
+            <option value="pos-top-right">Top-Right Corner</option>
+            <option value="pos-top-left">Top-Left Corner</option>
+            <option value="pos-bottom-right">Bottom-Right Corner</option>
+            <option value="pos-bottom-left">Bottom-Left Corner</option>
+          </select>
+
+          <label style="font-size: 0.85rem; font-weight: 600;">Animation Motion:</label>
+          <select id="glbAnimSelect" class="btn btn-glass" style="padding: 0.5rem; background: rgba(0,0,0,0.5);">
+            <option value="spin_yaw">Spinning Left/Right + Hover</option>
+            <option value="hover_only">Hovering in the Air</option>
+            <option value="pitch_roll_bounce">3D Pitch/Roll Bounce</option>
+          </select>
+        </div>
+
+        <div style="display: flex; gap: 0.8rem; flex-wrap: wrap;">
+          <button class="btn btn-primary" id="btnPlayGlbCity" style="flex: 1; min-width: 180px;">
+            🏰 Render City of Domes 3D GLB
+          </button>
+          <button class="btn btn-glass" id="btnStopGlb" style="color: #f87171; border-color: rgba(239,68,68,0.4);">
+            🛑 Stop 3D Model
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. Chroma Key Green Screen Color Customizer -->
     <h3 class="section-title">🎨 Chroma Key Green Screen Color</h3>
     <div class="glass-card" style="margin-bottom: 1.5rem;">
       <div style="display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap;">
@@ -553,6 +592,7 @@
       const lavaBtn = document.getElementById('btnPlayLavaShader');
       const starBtn = document.getElementById('btnPlayStarShader');
       const bdayBtn = document.getElementById('btnPlayBdayShader');
+      const discBtn = document.getElementById('btnPlayDiscShader');
       const stopShaderBtn = document.getElementById('btnStopShader');
       const opacitySlider = document.getElementById('shaderOpacitySlider');
       const opacityValDisplay = document.getElementById('opacityValDisplay');
@@ -563,6 +603,7 @@
         lavaBtn?.classList.remove('active');
         starBtn?.classList.remove('active');
         if (bdayBtn) bdayBtn.classList.remove('active');
+        if (discBtn) discBtn.classList.remove('active');
       }
 
       flamesBtn?.addEventListener('click', () => {
@@ -599,6 +640,48 @@
           window.remoteEngine.send('play_procedural_shader', { shader: 'happy_birthday', opacity });
           clearActiveShaderBtns();
           bdayBtn.classList.add('active');
+        });
+      }
+
+      if (discBtn) {
+        discBtn.addEventListener('click', () => {
+          const opacity = parseFloat(opacitySlider.value) || 0.75;
+          window.remoteEngine.send('play_procedural_shader', { shader: 'disc_city_of_domes', opacity });
+          clearActiveShaderBtns();
+          discBtn.classList.add('active');
+        });
+      }
+
+      // 3D GLB Model View Triggers
+      const btnPlayGlbCity = document.getElementById('btnPlayGlbCity');
+      const btnStopGlb = document.getElementById('btnStopGlb');
+      const glbPositionSelect = document.getElementById('glbPositionSelect');
+      const glbAnimSelect = document.getElementById('glbAnimSelect');
+
+      if (btnPlayGlbCity) {
+        btnPlayGlbCity.addEventListener('click', () => {
+          window.remoteEngine.send('play_glb_model', {
+            src: '../assets/Meshy_AI_City_of_Domes_and_Tow_0801094424_texture.glb',
+            position: glbPositionSelect.value,
+            animation: glbAnimSelect.value
+          });
+        });
+      }
+
+      if (glbPositionSelect && glbAnimSelect) {
+        const updateGlb = () => {
+          window.remoteEngine.send('update_glb_anim', {
+            position: glbPositionSelect.value,
+            animation: glbAnimSelect.value
+          });
+        };
+        glbPositionSelect.addEventListener('change', updateGlb);
+        glbAnimSelect.addEventListener('change', updateGlb);
+      }
+
+      if (btnStopGlb) {
+        btnStopGlb.addEventListener('click', () => {
+          window.remoteEngine.send('stop_glb_model');
         });
       }
 
