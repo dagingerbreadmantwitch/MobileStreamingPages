@@ -392,12 +392,49 @@
           </select>
         </div>
 
+        <div style="display: flex; align-items: center; gap: 0.8rem;">
+          <span style="font-size: 0.85rem; font-weight: 700; white-space: nowrap;">🔍 Size: <span id="carScaleVal">100%</span></span>
+          <input type="range" id="carScaleSlider" min="0.25" max="2.0" step="0.05" value="1.0" style="flex: 1; accent-color: #f59e0b; cursor: pointer;">
+        </div>
+
         <div style="display: flex; gap: 0.8rem; flex-wrap: wrap;">
           <button class="btn btn-primary" id="btnPlayComicCar" style="flex: 1; min-width: 180px; background: linear-gradient(135deg, #ef4444, #f59e0b);">
             🏎️ Play Drifting Comic Car Shader
           </button>
           <button class="btn btn-glass" id="btnStopComicCar" style="color: #f87171; border-color: rgba(239,68,68,0.4);">
             🛑 Stop Car Shader
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6. 3D Text Sequence Shader Overlay Control -->
+    <h3 class="section-title">✨ 3D Text Sequence Shader Overlay</h3>
+    <div class="glass-card" style="margin-bottom: 1.5rem;">
+      <div style="display: flex; flex-direction: column; gap: 1rem;">
+        <div style="display: flex; gap: 0.8rem; align-items: center; flex-wrap: wrap;">
+          <label style="font-size: 0.85rem; font-weight: 600;">Corner Position:</label>
+          <select id="textPositionSelect" class="btn btn-glass" style="padding: 0.5rem; background: rgba(0,0,0,0.5);">
+            <option value="pos-top-left">Top-Left Corner</option>
+            <option value="pos-top-right">Top-Right Corner</option>
+            <option value="pos-bottom-left">Bottom-Left Corner</option>
+            <option value="pos-bottom-right">Bottom-Right Corner</option>
+          </select>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 0.8rem;">
+          <span style="font-size: 0.85rem; font-weight: 700; white-space: nowrap;">🔍 Size: <span id="textScaleVal">100%</span></span>
+          <input type="range" id="textScaleSlider" min="0.25" max="2.0" step="0.05" value="1.0" style="flex: 1; accent-color: var(--accent-cyan); cursor: pointer;">
+        </div>
+
+        <p style="color: var(--text-muted); font-size: 0.8rem; margin: 0;">Cycles: <strong style="color: #fbbf24;">FOLLOW</strong> (gold, 6s) → <strong style="color: #06b6d4;">CHECK OUT DA LINKTREE</strong> (cyan, 6s) · 3D raymarched letters with staggered Y-flip animation</p>
+
+        <div style="display: flex; gap: 0.8rem; flex-wrap: wrap;">
+          <button class="btn btn-primary" id="btnPlayTextSequence" style="flex: 1; min-width: 180px; background: linear-gradient(135deg, #6366f1, #06b6d4);">
+            ✨ Play Text Sequence Shader
+          </button>
+          <button class="btn btn-glass" id="btnStopTextSequence" style="color: #f87171; border-color: rgba(239,68,68,0.4);">
+            🛑 Stop Text Shader
           </button>
         </div>
       </div>
@@ -714,12 +751,21 @@
       const btnPlayComicCar = document.getElementById('btnPlayComicCar');
       const btnStopComicCar = document.getElementById('btnStopComicCar');
       const carPositionSelect = document.getElementById('carPositionSelect');
+      const carScaleSlider = document.getElementById('carScaleSlider');
+      const carScaleVal = document.getElementById('carScaleVal');
+
+      if (carScaleSlider) {
+        carScaleSlider.addEventListener('input', () => {
+          carScaleVal.textContent = `${Math.round(parseFloat(carScaleSlider.value) * 100)}%`;
+        });
+      }
 
       if (btnPlayComicCar) {
         btnPlayComicCar.addEventListener('click', () => {
           window.remoteEngine.send('play_comic_car', {
             position: carPositionSelect ? carPositionSelect.value : 'pos-top-left',
-            opacity: 1.0
+            opacity: 1.0,
+            scale: carScaleSlider ? parseFloat(carScaleSlider.value) : 1.0
           });
         });
       }
@@ -727,6 +773,35 @@
       if (btnStopComicCar) {
         btnStopComicCar.addEventListener('click', () => {
           window.remoteEngine.send('stop_comic_car');
+        });
+      }
+
+      // 3D Text Sequence Shader Triggers
+      const btnPlayTextSequence = document.getElementById('btnPlayTextSequence');
+      const btnStopTextSequence = document.getElementById('btnStopTextSequence');
+      const textPositionSelect = document.getElementById('textPositionSelect');
+      const textScaleSlider = document.getElementById('textScaleSlider');
+      const textScaleVal = document.getElementById('textScaleVal');
+
+      if (textScaleSlider) {
+        textScaleSlider.addEventListener('input', () => {
+          textScaleVal.textContent = `${Math.round(parseFloat(textScaleSlider.value) * 100)}%`;
+        });
+      }
+
+      if (btnPlayTextSequence) {
+        btnPlayTextSequence.addEventListener('click', () => {
+          window.remoteEngine.send('play_text_sequence', {
+            position: textPositionSelect ? textPositionSelect.value : 'pos-top-left',
+            opacity: 1.0,
+            scale: textScaleSlider ? parseFloat(textScaleSlider.value) : 1.0
+          });
+        });
+      }
+
+      if (btnStopTextSequence) {
+        btnStopTextSequence.addEventListener('click', () => {
+          window.remoteEngine.send('stop_text_sequence');
         });
       }
 

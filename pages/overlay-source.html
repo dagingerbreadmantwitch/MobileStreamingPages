@@ -249,6 +249,20 @@
     #glbCanvas.pos-top-right, #shaderCarCanvas.pos-top-right { top: 20px; right: 20px; bottom: auto; left: auto; }
     #glbCanvas.pos-bottom-left, #shaderCarCanvas.pos-bottom-left { bottom: 20px; left: 20px; top: auto; right: auto; }
     #glbCanvas.pos-bottom-right, #shaderCarCanvas.pos-bottom-right { bottom: 20px; right: 20px; top: auto; left: auto; }
+    /* Text Sequence Shader Canvas — wider to fit animated text phrases */
+    #shaderTextCanvas {
+      position: absolute;
+      width: 560px;
+      height: 140px;
+      pointer-events: none;
+      display: none;
+      z-index: 12;
+      transition: all 0.4s ease;
+    }
+    #shaderTextCanvas.pos-top-left    { top: 20px;    left: 20px;   bottom: auto; right: auto; }
+    #shaderTextCanvas.pos-top-right   { top: 20px;    right: 20px;  bottom: auto; left: auto; }
+    #shaderTextCanvas.pos-bottom-left { bottom: 20px; left: 20px;   top: auto;    right: auto; }
+    #shaderTextCanvas.pos-bottom-right{ bottom: 20px; right: 20px;  top: auto;    left: auto; }
   </style>
 
   <!-- Fullscreen Media Overlay Layers (Procedural GLSL Shader Canvas, Rive Canvas, WebGL Video Canvas, Video, Alpha Canvas, 3D GLB Canvas, 2.5D Car Shader Canvas & PNG Overlay) -->
@@ -258,6 +272,7 @@
     <canvas id="riveCanvas"></canvas>
     <canvas id="glbCanvas"></canvas>
     <canvas id="shaderCarCanvas"></canvas>
+    <canvas id="shaderTextCanvas"></canvas>
     <video id="overlayVideo" autoplay playsinline webkit-playsinline muted crossorigin="anonymous"></video>
     <canvas id="alphaCanvas"></canvas>
     <img id="pngOverlayImage" class="png-overlay-image" alt="PNG Overlay">
@@ -488,10 +503,16 @@
           updateGlbAnim(payload.animation, payload.position);
           break;
         case 'play_comic_car':
-          playComicCarShader(payload.position || 'pos-top-left', payload.opacity || 1.0);
+          playComicCarShader(payload.position || 'pos-top-left', payload.opacity || 1.0, payload.scale || 1.0);
           break;
         case 'stop_comic_car':
           stopComicCarShader();
+          break;
+        case 'play_text_sequence':
+          playTextSequenceShader(payload.position || 'pos-top-left', payload.opacity || 1.0, payload.scale || 1.0);
+          break;
+        case 'stop_text_sequence':
+          stopTextSequenceShader();
           break;
         case 'show_png_overlay':
           showPngOverlay(payload.src, payload.position, payload.duration);
@@ -1617,12 +1638,22 @@
       }
     `;
 
-    function playComicCarShader(position = 'pos-top-left', opacity = 1.0) {
+    function playComicCarShader(position = 'pos-top-left', opacity = 1.0, scale = 1.0) {
       const canvas = document.getElementById('shaderCarCanvas');
       if (!canvas) return;
 
-      canvas.className = `${position || 'pos-top-left'}`;
+      const pos = position || 'pos-top-left';
+      canvas.className = pos;
       canvas.style.display = 'block';
+      canvas.style.transform = `scale(${scale})`;
+      // Scale from the anchor corner so the canvas doesn't drift off-screen
+      const originMap = {
+        'pos-top-left':     'top left',
+        'pos-top-right':    'top right',
+        'pos-bottom-left':  'bottom left',
+        'pos-bottom-right': 'bottom right',
+      };
+      canvas.style.transformOrigin = originMap[pos] || 'top left';
       isCarActive = true;
 
       if (!carGl) {
@@ -1692,6 +1723,353 @@
     function stopComicCarShader() {
       isCarActive = false;
       const canvas = document.getElementById('shaderCarCanvas');
+      if (canvas) canvas.style.display = 'none';
+    }
+
+    // 3D Raymarched Text Sequence Shader Overlay Engine
+    let textGl = null;
+    let textProgram = null;
+    let isTextActive = false;
+    let textAnimFrameId = null;
+
+    const fsTextSequenceSource = `
+      precision mediump float;
+      uniform vec2 iResolution;
+      uniform float iTime;
+      uniform float uOpacity;
+
+      #define MAX_STEPS 100
+      #define MAX_DIST 40.0
+      #define SURF_DIST 0.002
+
+      float sdBox(vec3 p, vec3 b) {
+          vec3 q = abs(p) - b;
+          return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0);
+      }
+
+      mat2 rot(float a) {
+          float s = sin(a), c = cos(a);
+          return mat2(c, -s, s, c);
+      }
+
+      // --- ALPHABET SDF GENERATOR (GLSL-compatible: int char codes) ---
+      // Char codes: F=70 O=79 L=76 W=87 C=67 H=72 E=69 K=75
+      //             U=85 T=84 D=68 A=65 I=73 N=78 R=82 space=32
+      float sdChar(int ch, vec3 p) {
+          float stem = 0.04;
+          float md = MAX_DIST;
+
+          if (ch == 70) { // F
+              float b1 = sdBox(p - vec3(-0.1, 0.0, 0.0), vec3(stem, 0.3, stem));
+              float b2 = sdBox(p - vec3(0.05, 0.24, 0.0), vec3(0.15, stem, stem));
+              float b3 = sdBox(p - vec3(0.0, 0.02, 0.0), vec3(0.1, stem, stem));
+              return min(b1, min(b2, b3));
+          }
+          if (ch == 79) { // O
+              float outer = sdBox(p, vec3(0.18, 0.3, stem));
+              float inner = sdBox(p, vec3(0.09, 0.2, stem * 2.0));
+              return max(outer, -inner);
+          }
+          if (ch == 76) { // L
+              float b1 = sdBox(p - vec3(-0.1, 0.0, 0.0), vec3(stem, 0.3, stem));
+              float b2 = sdBox(p - vec3(0.05, -0.24, 0.0), vec3(0.15, stem, stem));
+              return min(b1, b2);
+          }
+          if (ch == 87) { // W
+              vec3 p1 = p - vec3(-0.12, 0.0, 0.0); p1.xy *= rot(0.12);
+              vec3 p2 = p - vec3(-0.04, 0.0, 0.0); p2.xy *= rot(-0.12);
+              vec3 p3 = p - vec3(0.04, 0.0, 0.0);  p3.xy *= rot(0.12);
+              vec3 p4 = p - vec3(0.12, 0.0, 0.0);  p4.xy *= rot(-0.12);
+              return min(min(sdBox(p1, vec3(stem, 0.3, stem)), sdBox(p2, vec3(stem, 0.3, stem))),
+                         min(sdBox(p3, vec3(stem, 0.3, stem)), sdBox(p4, vec3(stem, 0.3, stem))));
+          }
+          if (ch == 67) { // C
+              float outer = sdBox(p, vec3(0.18, 0.3, stem));
+              float inner = sdBox(p, vec3(0.09, 0.2, stem * 2.0));
+              float cut   = sdBox(p - vec3(0.1, 0.0, 0.0), vec3(0.15, 0.15, stem * 2.0));
+              return max(outer, -max(inner, cut));
+          }
+          if (ch == 72) { // H
+              float b1 = sdBox(p - vec3(-0.12, 0.0, 0.0), vec3(stem, 0.3, stem));
+              float b2 = sdBox(p - vec3(0.12, 0.0, 0.0), vec3(stem, 0.3, stem));
+              float b3 = sdBox(p, vec3(0.12, stem, stem));
+              return min(min(b1, b2), b3);
+          }
+          if (ch == 69) { // E
+              float b1 = sdBox(p - vec3(-0.1, 0.0, 0.0), vec3(stem, 0.3, stem));
+              float b2 = sdBox(p - vec3(0.05, 0.24, 0.0), vec3(0.15, stem, stem));
+              float b3 = sdBox(p, vec3(0.1, stem, stem));
+              float b4 = sdBox(p - vec3(0.05, -0.24, 0.0), vec3(0.15, stem, stem));
+              return min(min(b1, b2), min(b3, b4));
+          }
+          if (ch == 75) { // K
+              float b1 = sdBox(p - vec3(-0.1, 0.0, 0.0), vec3(stem, 0.3, stem));
+              vec3 p2 = p - vec3(0.02, 0.08, 0.0); p2.xy *= rot(-0.7);
+              vec3 p3 = p - vec3(0.02,-0.08, 0.0); p3.xy *= rot(0.7);
+              return min(b1, min(sdBox(p2, vec3(stem, 0.2, stem)), sdBox(p3, vec3(stem, 0.2, stem))));
+          }
+          if (ch == 85) { // U
+              float outer = sdBox(p - vec3(0.0, 0.05, 0.0), vec3(0.18, 0.25, stem));
+              float inner = sdBox(p - vec3(0.0, 0.1, 0.0), vec3(0.09, 0.25, stem * 2.0));
+              return max(outer, -inner);
+          }
+          if (ch == 84) { // T
+              float b1 = sdBox(p - vec3(0.0, 0.24, 0.0), vec3(0.18, stem, stem));
+              float b2 = sdBox(p, vec3(stem, 0.3, stem));
+              return min(b1, b2);
+          }
+          if (ch == 68) { // D
+              float outer = sdBox(p, vec3(0.18, 0.3, stem));
+              float inner = sdBox(p - vec3(-0.04, 0.0, 0.0), vec3(0.08, 0.2, stem * 2.0));
+              return max(outer, -inner);
+          }
+          if (ch == 65) { // A
+              vec3 pa = p - vec3(-0.08, 0.0, 0.0); pa.xy *= rot(0.2);
+              vec3 pb = p - vec3(0.08, 0.0, 0.0);  pb.xy *= rot(-0.2);
+              float mid = sdBox(p - vec3(0.0, -0.05, 0.0), vec3(0.1, stem, stem));
+              return min(min(sdBox(pa, vec3(stem, 0.3, stem)), sdBox(pb, vec3(stem, 0.3, stem))), mid);
+          }
+          if (ch == 73) return sdBox(p, vec3(stem, 0.3, stem)); // I
+          if (ch == 78) { // N
+              float b1 = sdBox(p - vec3(-0.12, 0.0, 0.0), vec3(stem, 0.3, stem));
+              float b2 = sdBox(p - vec3(0.12, 0.0, 0.0), vec3(stem, 0.3, stem));
+              vec3 p3 = p; p3.xy *= rot(-0.4);
+              return min(min(b1, b2), sdBox(p3, vec3(stem, 0.3, stem)));
+          }
+          if (ch == 82) { // R
+              float b1  = sdBox(p - vec3(-0.1, 0.0, 0.0), vec3(stem, 0.3, stem));
+              float top = sdBox(p - vec3(0.0, 0.12, 0.0), vec3(0.12, 0.12, stem));
+              vec3 p2   = p - vec3(0.05,-0.15, 0.0); p2.xy *= rot(0.5);
+              return min(min(b1, top), sdBox(p2, vec3(stem, 0.18, stem)));
+          }
+          return md;
+      }
+
+      // Phrase 1: FOLLOW (6 chars, spacing 0.55)
+      float renderFollow(vec3 p, float flipProgress) {
+          float d = MAX_DIST;
+          float spacing = 0.55;
+          float offset  = 2.5 * spacing;
+          int[6] chars;
+          chars[0]=70; chars[1]=79; chars[2]=76; chars[3]=76; chars[4]=79; chars[5]=87;
+          for (int i = 0; i < 6; i++) {
+              vec3 lp = p - vec3(float(i) * spacing - offset, 0.0, 0.0);
+              float stagger = float(i) * 0.15;
+              float letterFlip = clamp((flipProgress - stagger) * 6.28318, 0.0, 6.28318);
+              lp.yz *= rot(letterFlip);
+              d = min(d, sdChar(chars[i], lp));
+          }
+          return d;
+      }
+
+      // Phrase 2: CHECK OUT DA LINKTREE (18 slots, spacing 0.35, scaled 1.25x)
+      float renderPhrase2(vec3 p, float flipProgress) {
+          float d = MAX_DIST;
+          float spacing = 0.35;
+          float offset  = 8.5 * spacing;
+          int[18] chars;
+          chars[0]=67;  chars[1]=72;  chars[2]=69;  chars[3]=67;  chars[4]=75;
+          chars[5]=32;  chars[6]=79;  chars[7]=85;  chars[8]=84;
+          chars[9]=32;  chars[10]=68; chars[11]=65;
+          chars[12]=32; chars[13]=76; chars[14]=73; chars[15]=78; chars[16]=75; chars[17]=84;
+          vec3 sp = p * 1.25;
+          for (int i = 0; i < 18; i++) {
+              if (chars[i] == 32) continue;
+              vec3 lp = sp - vec3(float(i) * spacing - offset, 0.0, 0.0);
+              float stagger = float(i) * 0.08;
+              float letterFlip = clamp((flipProgress - stagger) * 6.28318, 0.0, 6.28318);
+              lp.yz *= rot(letterFlip);
+              d = min(d, sdChar(chars[i], lp));
+          }
+          return d;
+      }
+
+      vec2 map(vec3 p) {
+          vec2 res = vec2(MAX_DIST, 0.0);
+          float cycleTime = 12.0;
+          float t = mod(iTime, cycleTime);
+
+          if (t < 6.0) {
+              float inPos  = smoothstep(0.0, 1.2, t);
+              float outPos = smoothstep(4.2, 5.4, t);
+              float xPos   = mix(-7.0, 0.0, inPos) + mix(0.0, 7.0, outPos);
+              float flipTime = clamp((t - 1.5) / 2.5, 0.0, 1.0);
+              vec3 textP = p - vec3(xPos, 0.0, 0.0);
+              float d = renderFollow(textP, flipTime);
+              if (d < res.x) res = vec2(d, 1.0); // Material 1: Gold
+          } else {
+              float t2     = t - 6.0;
+              float inPos  = smoothstep(0.0, 1.2, t2);
+              float outPos = smoothstep(4.2, 5.4, t2);
+              float xPos   = mix(-7.0, 0.0, inPos) + mix(0.0, 7.0, outPos);
+              float flipTime = clamp((t2 - 1.5) / 2.5, 0.0, 1.0);
+              vec3 textP = p - vec3(xPos, 0.0, 0.0);
+              float d = renderPhrase2(textP, flipTime);
+              if (d < res.x) res = vec2(d, 2.0); // Material 2: Cyan
+          }
+          return res;
+      }
+
+      vec3 getNormal(vec3 p) {
+          float d = map(p).x;
+          vec2 e = vec2(0.002, 0.0);
+          vec3 n = d - vec3(
+              map(p - e.xyy).x,
+              map(p - e.yxy).x,
+              map(p - e.yyx).x
+          );
+          return normalize(n);
+      }
+
+      vec2 rayMarch(vec3 ro, vec3 rd) {
+          float dO = 0.0;
+          float mat = 0.0;
+          for (int i = 0; i < MAX_STEPS; i++) {
+              vec3 p = ro + rd * dO;
+              vec2 ds = map(p);
+              if (abs(ds.x) < SURF_DIST) { mat = ds.y; break; }
+              if (dO > MAX_DIST) break;
+              dO += ds.x;
+          }
+          return vec2(dO, mat);
+      }
+
+      void main() {
+          vec2 fragCoord = gl_FragCoord.xy;
+          vec2 uv = (fragCoord - 0.5 * iResolution.xy) / iResolution.y;
+
+          vec3 ro = vec3(0.0, 0.0, 5.0);
+          vec3 rd = vec3(0.0, 0.0, -1.0);
+          float orthoZoom = 2.5;
+          vec3 rayOrigin = ro + vec3(uv * orthoZoom, 0.0);
+
+          vec2 rm  = rayMarch(rayOrigin, rd);
+          float d  = rm.x;
+          float mat = rm.y;
+
+          vec4 finalRgba = vec4(0.0);
+
+          if (d < MAX_DIST) {
+              vec3 p = rayOrigin + rd * d;
+              vec3 n = getNormal(p);
+              vec3 lightDir = normalize(vec3(0.5, 0.8, 1.0));
+
+              float dif = max(dot(n, lightDir), 0.0);
+              dif = smoothstep(0.01, 0.05, dif) * 0.3 + smoothstep(0.3, 0.35, dif) * 0.7;
+
+              vec3 albedo = vec3(1.0);
+              if (mat == 1.0) {
+                  albedo = vec3(1.0, 0.8, 0.0);   // FOLLOW — Gold/Yellow
+              } else if (mat == 2.0) {
+                  albedo = vec3(0.1, 0.85, 1.0);  // CHECK OUT DA LINKTREE — Cyan
+              }
+
+              vec3 rgb = albedo * (dif * 0.8 + 0.2);
+
+              float fresnel = 1.0 - max(dot(n, -rd), 0.0);
+              float edge    = smoothstep(0.4, 0.6, fresnel);
+              rgb = mix(rgb, vec3(0.0), edge * 0.8);
+
+              finalRgba = vec4(rgb, 1.0);
+          }
+
+          finalRgba.rgb = pow(finalRgba.rgb, vec3(0.4545)); // gamma
+          gl_FragColor  = vec4(finalRgba.rgb, finalRgba.a * uOpacity);
+      }
+    `;
+
+    function playTextSequenceShader(position = 'pos-top-left', opacity = 1.0, scale = 1.0) {
+      const canvas = document.getElementById('shaderTextCanvas');
+      if (!canvas) return;
+
+      const pos = position || 'pos-top-left';
+      canvas.className = pos;
+      canvas.style.display = 'block';
+      canvas.style.transform = `scale(${scale})`;
+      // Scale from the anchor corner so the canvas doesn't drift off-screen
+      const originMap = {
+        'pos-top-left':     'top left',
+        'pos-top-right':    'top right',
+        'pos-bottom-left':  'bottom left',
+        'pos-bottom-right': 'bottom right',
+      };
+      canvas.style.transformOrigin = originMap[pos] || 'top left';
+      isTextActive = true;
+
+      if (!textGl) {
+        textGl = canvas.getContext('webgl', { alpha: true, antialias: true }) || canvas.getContext('experimental-webgl', { alpha: true });
+        if (!textGl) return;
+
+        const vsSource = `
+          attribute vec2 a_position;
+          void main() {
+            gl_Position = vec4(a_position, 0.0, 1.0);
+          }
+        `;
+
+        const vert = textGl.createShader(textGl.VERTEX_SHADER);
+        textGl.shaderSource(vert, vsSource);
+        textGl.compileShader(vert);
+
+        const frag = textGl.createShader(textGl.FRAGMENT_SHADER);
+        textGl.shaderSource(frag, fsTextSequenceSource);
+        textGl.compileShader(frag);
+
+        textProgram = textGl.createProgram();
+        textGl.attachShader(textProgram, vert);
+        textGl.attachShader(textProgram, frag);
+        textGl.linkProgram(textProgram);
+
+        const buffer = textGl.createBuffer();
+        textGl.bindBuffer(textGl.ARRAY_BUFFER, buffer);
+        textGl.bufferData(textGl.ARRAY_BUFFER, new Float32Array([
+          -1, -1,
+           1, -1,
+          -1,  1,
+           1,  1,
+        ]), textGl.STATIC_DRAW);
+      }
+
+      const startTime = performance.now();
+      const resLoc     = textGl.getUniformLocation(textProgram, 'iResolution');
+      const timeLoc    = textGl.getUniformLocation(textProgram, 'iTime');
+      const opacityLoc = textGl.getUniformLocation(textProgram, 'uOpacity');
+      const posLoc     = textGl.getAttribLocation(textProgram, 'a_position');
+
+      // Canvas dimensions: wider (560x140) to accommodate long text phrases
+      const CW = 560, CH = 140;
+
+      function renderTextFrame(now) {
+        if (!isTextActive || canvas.style.display === 'none') return;
+        textAnimFrameId = requestAnimationFrame(renderTextFrame);
+
+        canvas.width  = CW;
+        canvas.height = CH;
+        textGl.viewport(0, 0, CW, CH);
+
+        textGl.useProgram(textProgram);
+        textGl.enableVertexAttribArray(posLoc);
+        textGl.vertexAttribPointer(posLoc, 2, textGl.FLOAT, false, 0, 0);
+
+        textGl.uniform2f(resLoc, CW, CH);
+        textGl.uniform1f(timeLoc, (now - startTime) * 0.001);
+        textGl.uniform1f(opacityLoc, opacity);
+
+        textGl.clearColor(0.0, 0.0, 0.0, 0.0);
+        textGl.clear(textGl.COLOR_BUFFER_BIT);
+        textGl.drawArrays(textGl.TRIANGLE_STRIP, 0, 4);
+      }
+
+      textAnimFrameId = requestAnimationFrame(renderTextFrame);
+    }
+
+    function stopTextSequenceShader() {
+      isTextActive = false;
+      if (textAnimFrameId) {
+        cancelAnimationFrame(textAnimFrameId);
+        textAnimFrameId = null;
+      }
+      const canvas = document.getElementById('shaderTextCanvas');
       if (canvas) canvas.style.display = 'none';
     }
 
