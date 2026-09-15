@@ -884,11 +884,20 @@
             currentShaderName.style.color = '#38bdf8';
           }
           if (shaderTimerDisplay) {
-            shaderTimerDisplay.textContent = `${data.remainingSec}s left`;
-            shaderTimerDisplay.style.color = '#38bdf8';
+            if (data.isContinuous || data.remainingSec === null) {
+              shaderTimerDisplay.textContent = 'Continuous';
+              shaderTimerDisplay.style.color = '#10b981';
+            } else {
+              shaderTimerDisplay.textContent = `${data.remainingSec}s left`;
+              shaderTimerDisplay.style.color = '#38bdf8';
+            }
           }
           if (shaderStatusNote) {
-            shaderStatusNote.textContent = 'Playing full cycle';
+            if (data.isContinuous || data.remainingSec === null) {
+              shaderStatusNote.textContent = 'Running continuously (switches only when another shader is chosen)';
+            } else {
+              shaderStatusNote.textContent = 'Playing 20s animation cycle';
+            }
           }
         } else {
           if (playingPulseDot) {

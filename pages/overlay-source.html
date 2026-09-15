@@ -1652,10 +1652,10 @@
 
     // =========================================================================
     // Shader Queue & Mutex Engine (Comic Car & 3D Text Sequence)
-    // Plays currently active shader all the way through before playing next queued shader
+    // Comic Car runs continuously (no timer); 3D Text Sequence runs 20s cycle
+    // Only use queue if a different shader type is being prepared (only end running shader if another shader type is chosen)
     // =========================================================================
     const TEXT_SEQUENCE_DURATION = 20000; // 20.0s (10s "FOLLOW" + 10s "CHECK OUT DA LINKTREE")
-    const COMIC_CAR_DURATION = 20000;     // 20.0s full drift cycle matching text sequence
 
     let currentPlayingShader = null; // 'comic_car' | 'text_sequence' | null
     let shaderQueue = [];            // Array of { type, name, position, opacity, scale }
@@ -1665,10 +1665,12 @@
     let queueBroadcastInterval = null;
 
     function broadcastQueueStatus() {
-      let remainingSec = 0;
-      if (currentPlayingShader && currentShaderStartedAt > 0) {
+      let remainingSec = null;
+      if (currentPlayingShader === 'text_sequence' && currentShaderStartedAt > 0) {
         const elapsed = Date.now() - currentShaderStartedAt;
-        remainingSec = Math.max(0, Math.ceil((currentShaderDuration - elapsed) / 1000));
+        remainingSec = Math.max(0, Math.ceil((TEXT_SEQUENCE_DURATION - elapsed) / 1000));
+      } else if (currentPlayingShader === 'comic_car') {
+        remainingSec = null; // Runs continuously
       }
 
       const payload = {
@@ -1678,6 +1680,7 @@
           : currentPlayingShader === 'text_sequence' 
             ? '✨ 3D Text Sequence' 
             : null,
+        isContinuous: currentPlayingShader === 'comic_car',
         remainingSec,
         queue: shaderQueue.map((item, idx) => ({
           index: idx + 1,
@@ -1701,23 +1704,60 @@
         scale: payload.scale !== undefined ? payload.scale : 1.0
       };
 
+      // 1. If nothing is currently playing: start immediately
       if (!currentPlayingShader) {
-        // Nothing is currently active: start immediately
         startShader(item);
-      } else {
-        // Shader is currently playing! Queue it up so current shader plays all the way through
-        const isDuplicateTail = shaderQueue.length > 0 && shaderQueue[shaderQueue.length - 1].type === type;
-        if (!isDuplicateTail && shaderQueue.length < 10) {
+        return;
+      }
+
+      // 2. If the SAME shader type is already playing:
+      // Do NOT use queue, do NOT interrupt or restart playback. Just update transform if changed.
+      if (currentPlayingShader === type) {
+        if (type === 'comic_car') {
+          const canvas = document.getElementById('shaderCarCanvas');
+          if (canvas) {
+            if (payload.position) canvas.className = payload.position;
+            if (payload.scale !== undefined) canvas.style.transform = `scale(${payload.scale})`;
+          }
+        } else if (type === 'text_sequence') {
+          const canvas = document.getElementById('shaderTextCanvas');
+          if (canvas) {
+            if (payload.position) canvas.className = payload.position;
+            if (payload.scale !== undefined) canvas.style.transform = `scale(${payload.scale})`;
+          }
+        }
+        return;
+      }
+
+      // 3. A DIFFERENT shader type is being prepared:
+      // "only use the queue if a different type of shader is being prepared -
+      //  in other words only end the shader if another type of shader is chosen"
+      if (currentPlayingShader === 'comic_car' && type === 'text_sequence') {
+        // Comic car runs continuously with no timer; ending it now because another shader type was chosen
+        rawStopComicCarShader();
+        currentPlayingShader = null;
+        if (currentShaderTimer) {
+          clearTimeout(currentShaderTimer);
+          currentShaderTimer = null;
+        }
+        startShader(item);
+        return;
+      }
+
+      if (currentPlayingShader === 'text_sequence' && type === 'comic_car') {
+        // Text sequence is currently running its 20s cycle; queue comic car to play once text completes
+        const isAlreadyQueued = shaderQueue.some(q => q.type === type);
+        if (!isAlreadyQueued && shaderQueue.length < 10) {
           shaderQueue.push(item);
           broadcastQueueStatus();
         }
+        return;
       }
     }
 
     function startShader(item) {
       currentPlayingShader = item.type;
       currentShaderStartedAt = Date.now();
-      currentShaderDuration = item.type === 'comic_car' ? COMIC_CAR_DURATION : TEXT_SEQUENCE_DURATION;
 
       if (currentShaderTimer) {
         clearTimeout(currentShaderTimer);
@@ -1725,9 +1765,16 @@
       }
 
       if (item.type === 'comic_car') {
+        // Comic Car runs continuously without a timer!
+        currentShaderDuration = 0;
         rawPlayComicCarShader(item.position, item.opacity, item.scale);
       } else if (item.type === 'text_sequence') {
+        // 3D Text Sequence runs for its 20s animation cycle
+        currentShaderDuration = TEXT_SEQUENCE_DURATION;
         rawPlayTextSequenceShader(item.position, item.opacity, item.scale);
+        currentShaderTimer = setTimeout(() => {
+          onShaderCycleComplete();
+        }, currentShaderDuration);
       }
 
       broadcastQueueStatus();
@@ -1735,10 +1782,6 @@
       if (!queueBroadcastInterval) {
         queueBroadcastInterval = setInterval(broadcastQueueStatus, 1000);
       }
-
-      currentShaderTimer = setTimeout(() => {
-        onShaderCycleComplete();
-      }, currentShaderDuration);
     }
 
     function onShaderCycleComplete() {
