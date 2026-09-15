@@ -507,12 +507,14 @@
           playComicCarShader(payload.position || 'pos-top-left', payload.opacity || 1.0, payload.scale || 1.0);
           break;
         case 'stop_comic_car':
+          pendingCarCall = null;
           stopComicCarShader();
           break;
         case 'play_text_sequence':
           playTextSequenceShader(payload.position || 'pos-top-left', payload.opacity || 1.0, payload.scale || 1.0);
           break;
         case 'stop_text_sequence':
+          pendingTextCall = null;
           stopTextSequenceShader();
           break;
         case 'show_png_overlay':
@@ -1640,7 +1642,19 @@
       }
     `;
 
+    // Mutual Queueing / Mutex for Comic Car & Text Sequence
+    let pendingCarCall = null;
+    let pendingTextCall = null;
+    let textSequenceTimer = null;
+
     function playComicCarShader(position = 'pos-top-left', opacity = 1.0, scale = 1.0) {
+      if (isTextActive) {
+        // Text sequence is currently running; wait until text sequence ends
+        pendingCarCall = { position, opacity, scale };
+        return;
+      }
+      pendingCarCall = null;
+
       const canvas = document.getElementById('shaderCarCanvas');
       if (!canvas) return;
 
@@ -1731,6 +1745,13 @@
       }
       const canvas = document.getElementById('shaderCarCanvas');
       if (canvas) canvas.style.display = 'none';
+
+      // If text sequence is waiting for car to finish, start it now
+      if (pendingTextCall) {
+        const next = pendingTextCall;
+        pendingTextCall = null;
+        playTextSequenceShader(next.position, next.opacity, next.scale);
+      }
     }
 
     // 3D Raymarched Text Sequence Shader Overlay Engine
@@ -1760,8 +1781,6 @@
       }
 
       // --- ALPHABET SDF GENERATOR ---
-      // Char codes: F=70 O=79 L=76 W=87 C=67 H=72 E=69 K=75
-      //             U=85 T=84 D=68 A=65 I=73 N=78 R=82 space=32
       float sdChar(int ch, vec3 p) {
           float stem = 0.04;
           float md = MAX_DIST;
@@ -1852,41 +1871,49 @@
           return md;
       }
 
-      // Phrase 1: FOLLOW (6 chars, spacing 0.55)
-      // Fixed char arrays unrolled for GLSL ES 1.0 compatibility
+      // Phrase 1: FOLLOW (6 chars)
       float renderFollow(vec3 p, float flipProgress) {
           float d = MAX_DIST;
           float spacing = 0.55;
           float offset  = 2.5 * spacing;
           int chars[6];
-          chars[0]=70; chars[1]=79; chars[2]=76; chars[3]=76; chars[4]=79; chars[5]=87;
+          chars[0] = 70; chars[1] = 79; chars[2] = 76; chars[3] = 76; chars[4] = 79; chars[5] = 87;
+
           for (int i = 0; i < 6; i++) {
               vec3 lp = p - vec3(float(i) * spacing - offset, 0.0, 0.0);
-              float stagger = float(i) * 0.15;
-              float letterFlip = clamp((flipProgress - stagger) * 6.28318, 0.0, 6.28318);
-              lp.yz *= rot(letterFlip);
+              float stagger = float(i) * 0.12;
+              // Normalized letter flip progress allowing time for full unroll
+              float letterFlip = clamp((flipProgress - stagger) * 2.5, 0.0, 1.0) * 6.283185;
+
+              // Horizontal Flip (Y-axis rotation)
+              lp.xz *= rot(letterFlip);
+
               d = min(d, sdChar(chars[i], lp));
           }
           return d;
       }
 
-      // Phrase 2: CHECK OUT DA LINKT (18 slots, spacing 0.35, scaled 1.25x)
+      // Phrase 2: CHECK OUT DA LINKTREE (21 chars)
       float renderPhrase2(vec3 p, float flipProgress) {
           float d = MAX_DIST;
-          float spacing = 0.35;
-          float offset  = 8.5 * spacing;
-          int chars[18];
-          chars[0]=67;  chars[1]=72;  chars[2]=69;  chars[3]=67;  chars[4]=75;
-          chars[5]=32;  chars[6]=79;  chars[7]=85;  chars[8]=84;
-          chars[9]=32;  chars[10]=68; chars[11]=65;
-          chars[12]=32; chars[13]=76; chars[14]=73; chars[15]=78; chars[16]=75; chars[17]=84;
+          float spacing = 0.32;
+          float offset  = 10.0 * spacing;
+          int chars[21];
+          chars[0] = 67; chars[1] = 72; chars[2] = 69; chars[3] = 67; chars[4] = 75; chars[5] = 32;
+          chars[6] = 79; chars[7] = 85; chars[8] = 84; chars[9] = 32;
+          chars[10] = 68; chars[11] = 65; chars[12] = 32;
+          chars[13] = 76; chars[14] = 73; chars[15] = 78; chars[16] = 75; chars[17] = 84; chars[18] = 82; chars[19] = 69; chars[20] = 69;
+
           vec3 sp = p * 1.25;
-          for (int i = 0; i < 18; i++) {
+          for (int i = 0; i < 21; i++) {
               if (chars[i] == 32) continue;
               vec3 lp = sp - vec3(float(i) * spacing - offset, 0.0, 0.0);
-              float stagger = float(i) * 0.08;
-              float letterFlip = clamp((flipProgress - stagger) * 6.28318, 0.0, 6.28318);
-              lp.yz *= rot(letterFlip);
+              float stagger = float(i) * 0.035; // Fine-tuned stagger so 21 chars finish completely
+              float letterFlip = clamp((flipProgress - stagger) * 2.2, 0.0, 1.0) * 6.283185;
+
+              // Horizontal Flip (Y-axis rotation)
+              lp.xz *= rot(letterFlip);
+
               d = min(d, sdChar(chars[i], lp));
           }
           return d;
@@ -1894,26 +1921,34 @@
 
       vec2 map(vec3 p) {
           vec2 res = vec2(MAX_DIST, 0.0);
-          float cycleTime = 12.0;
+          float cycleTime = 14.0; // Extended total cycle time for full flips
           float t = mod(iTime, cycleTime);
 
-          if (t < 6.0) {
-              float inPos  = smoothstep(0.0, 1.2, t);
-              float outPos = smoothstep(4.2, 5.4, t);
+          if (t < 7.0) {
+              // --- PHRASE 1: FOLLOW ---
+              // Enter: 0.0s - 0.8s | Stationary Flip: 0.8s - 5.8s | Exit: 5.8s - 6.8s
+              float inPos  = smoothstep(0.0, 0.8, t);
+              float outPos = smoothstep(5.8, 6.8, t);
               float xPos   = mix(-7.0, 0.0, inPos) + mix(0.0, 7.0, outPos);
-              float flipTime = clamp((t - 1.5) / 2.5, 0.0, 1.0);
+
+              // Flip progresses strictly while stationary in center
+              float flipTime = clamp((t - 0.8) / 4.2, 0.0, 1.0);
               vec3 textP = p - vec3(xPos, 0.0, 0.0);
               float d = renderFollow(textP, flipTime);
-              if (d < res.x) res = vec2(d, 1.0); // Material 1: Gold
+              if (d < res.x) res = vec2(d, 1.0);
           } else {
-              float t2     = t - 6.0;
-              float inPos  = smoothstep(0.0, 1.2, t2);
-              float outPos = smoothstep(4.2, 5.4, t2);
+              // --- PHRASE 2: CHECK OUT DA LINKTREE ---
+              float t2     = t - 7.0;
+              // Enter: 0.0s - 0.8s | Stationary Flip: 0.8s - 5.8s | Exit: 5.8s - 6.8s
+              float inPos  = smoothstep(0.0, 0.8, t2);
+              float outPos = smoothstep(5.8, 6.8, t2);
               float xPos   = mix(-7.0, 0.0, inPos) + mix(0.0, 7.0, outPos);
-              float flipTime = clamp((t2 - 1.5) / 2.5, 0.0, 1.0);
+
+              // Flip progresses strictly while stationary in center
+              float flipTime = clamp((t2 - 0.8) / 4.2, 0.0, 1.0);
               vec3 textP = p - vec3(xPos, 0.0, 0.0);
               float d = renderPhrase2(textP, flipTime);
-              if (d < res.x) res = vec2(d, 2.0); // Material 2: Cyan
+              if (d < res.x) res = vec2(d, 2.0);
           }
           return res;
       }
@@ -1965,12 +2000,8 @@
               float dif = max(dot(n, lightDir), 0.0);
               dif = smoothstep(0.01, 0.05, dif) * 0.3 + smoothstep(0.3, 0.35, dif) * 0.7;
 
-              vec3 albedo = vec3(1.0);
-              if (mat == 1.0) {
-                  albedo = vec3(1.0, 0.8, 0.0);   // FOLLOW — Gold/Yellow
-              } else if (mat == 2.0) {
-                  albedo = vec3(0.1, 0.85, 1.0);  // CHECK OUT DA LINKT — Cyan
-              }
+              // Solid Red Color
+              vec3 albedo = vec3(0.9, 0.08, 0.08);
 
               vec3 rgb = albedo * (dif * 0.8 + 0.2);
 
@@ -1987,6 +2018,13 @@
     `;
 
     function playTextSequenceShader(position = 'pos-top-left', opacity = 1.0, scale = 1.0) {
+      if (isCarActive) {
+        // Car animation is running; queue text sequence until car finishes
+        pendingTextCall = { position, opacity, scale };
+        return;
+      }
+      pendingTextCall = null;
+
       const canvas = document.getElementById('shaderTextCanvas');
       if (!canvas) return;
 
@@ -2069,16 +2107,36 @@
       }
 
       textAnimFrameId = requestAnimationFrame(renderTextFrame);
+
+      if (textSequenceTimer) {
+        clearTimeout(textSequenceTimer);
+        textSequenceTimer = null;
+      }
+      // Text sequence runs for full 14s cycle (Phrase 1 + Phrase 2) then auto-ends
+      textSequenceTimer = setTimeout(() => {
+        stopTextSequenceShader();
+      }, 14000);
     }
 
     function stopTextSequenceShader() {
       isTextActive = false;
+      if (textSequenceTimer) {
+        clearTimeout(textSequenceTimer);
+        textSequenceTimer = null;
+      }
       if (textAnimFrameId) {
         cancelAnimationFrame(textAnimFrameId);
         textAnimFrameId = null;
       }
       const canvas = document.getElementById('shaderTextCanvas');
       if (canvas) canvas.style.display = 'none';
+
+      // If car was waiting for text sequence to finish, start it now
+      if (pendingCarCall) {
+        const next = pendingCarCall;
+        pendingCarCall = null;
+        playComicCarShader(next.position, next.opacity, next.scale);
+      }
     }
 
     // PNG Graphic Overlay Engine
