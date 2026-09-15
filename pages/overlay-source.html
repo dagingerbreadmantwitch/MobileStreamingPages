@@ -1991,8 +1991,8 @@
       // --- ALPHABET SDF GENERATOR ---
       float sdChar(int ch, vec3 p) {
           float stem = 0.04;
-          float md = MAX_DIST;
 
+          if (ch == 32) return MAX_DIST; // Space
           if (ch == 70) { // F
               float b1 = sdBox(p - vec3(-0.1, 0.0, 0.0), vec3(stem, 0.3, stem));
               float b2 = sdBox(p - vec3(0.05, 0.24, 0.0), vec3(0.15, stem, stem));
@@ -2009,7 +2009,7 @@
               float b2 = sdBox(p - vec3(0.05, -0.24, 0.0), vec3(0.15, stem, stem));
               return min(b1, b2);
           }
-          if (ch == 87) { // W (Explicitly constructed W geometry - upside-down M)
+          if (ch == 87) { // W
               float b1 = sdBox(p - vec3(-0.14, 0.0, 0.0), vec3(stem, 0.3, stem));
               float b2 = sdBox(p - vec3(0.14, 0.0, 0.0), vec3(stem, 0.3, stem));
               vec3 p3 = p - vec3(-0.07, -0.1, 0.0); p3.xy *= rot(0.3);
@@ -2075,7 +2075,33 @@
               vec3 p2   = p - vec3(0.05,-0.15, 0.0); p2.xy *= rot(0.5);
               return min(min(b1, top), sdBox(p2, vec3(stem, 0.18, stem)));
           }
-          return md;
+          return MAX_DIST;
+      }
+
+      // Helper to resolve characters safely without dynamic array lookup issues
+      int getPhrase2Char(int index) {
+          if (index == 0) return 67;  // C
+          if (index == 1) return 72;  // H
+          if (index == 2) return 69;  // E
+          if (index == 3) return 67;  // C
+          if (index == 4) return 75;  // K
+          if (index == 5) return 32;  // _
+          if (index == 6) return 79;  // O
+          if (index == 7) return 85;  // U
+          if (index == 8) return 84;  // T
+          if (index == 9) return 32;  // _
+          if (index == 10) return 68; // D
+          if (index == 11) return 65; // A
+          if (index == 12) return 32; // _
+          if (index == 13) return 76; // L
+          if (index == 14) return 73; // I
+          if (index == 15) return 78; // N
+          if (index == 16) return 75; // K
+          if (index == 17) return 84; // T
+          if (index == 18) return 82; // R
+          if (index == 19) return 69; // E
+          if (index == 20) return 69; // E
+          return 32;
       }
 
       // Phrase 1: FOLLOW (6 chars)
@@ -2083,78 +2109,76 @@
           float d = MAX_DIST;
           float spacing = 0.55;
           float offset  = 2.5 * spacing;
-          int chars[6];
-          chars[0] = 70; chars[1] = 79; chars[2] = 76; chars[3] = 76; chars[4] = 79; chars[5] = 87;
-
+          
           for (int i = 0; i < 6; i++) {
+              int ch = 70;
+              if (i == 1 || i == 4) ch = 79;
+              if (i == 2 || i == 3) ch = 76;
+              if (i == 5) ch = 87; // W
+              
               vec3 lp = p - vec3(float(i) * spacing - offset, 0.0, 0.0);
               float stagger = float(i) * 0.10;
               float letterFlip = clamp((flipProgress - stagger) * 2.0, 0.0, 1.0) * 6.283185;
-
-              // Horizontal X-Flip (Y-axis rotation)
+              
               lp.xz *= rot(letterFlip);
-
-              d = min(d, sdChar(chars[i], lp));
+              d = min(d, sdChar(ch, lp));
           }
           return d;
       }
 
-      // Phrase 2: CHECK OUT DA LINKTREE (18 char array parsed in groups)
+      // Phrase 2: CHECK OUT DA LINKTREE (21 slots via direct function lookup)
       float renderPhrase2(vec3 p, float flipProgress) {
           float d = MAX_DIST;
           float spacing = 0.28;
-          float offset  = 10.5 * spacing;
-          int chars[21];
-          chars[0] = 67; chars[1] = 72; chars[2] = 69; chars[3] = 67; chars[4] = 75; chars[5] = 32;
-          chars[6] = 79; chars[7] = 85; chars[8] = 84; chars[9] = 32;
-          chars[10] = 68; chars[11] = 65; chars[12] = 32;
-          chars[13] = 76; chars[14] = 73; chars[15] = 78; chars[16] = 75; chars[17] = 84; chars[18] = 82; chars[19] = 69; chars[20] = 69;
-
+          float offset  = 10.0 * spacing;
+          
           vec3 sp = p * 1.35;
           for (int i = 0; i < 21; i++) {
-              if (chars[i] == 32) continue;
+              int ch = getPhrase2Char(i);
+              if (ch == 32) continue;
+              
               vec3 lp = sp - vec3(float(i) * spacing - offset, 0.0, 0.0);
-              float stagger = float(i) * 0.03;
+              float stagger = float(i) * 0.03; 
               float letterFlip = clamp((flipProgress - stagger) * 1.8, 0.0, 1.0) * 6.283185;
-
-              // Horizontal X-Flip (Y-axis rotation)
+              
               lp.xz *= rot(letterFlip);
-
-              d = min(d, sdChar(chars[i], lp));
+              d = min(d, sdChar(ch, lp));
           }
           return d;
       }
 
       vec2 map(vec3 p) {
-          vec2 res = vec2(MAX_DIST, 0.0);
-          float cycleTime = 20.0; // Total timing: 10s per phrase
-          float t = mod(iTime, cycleTime);
+          float d = MAX_DIST;
+          float mat = 0.0;
+          
+          // Strict 20s loop reset
+          float t = mod(iTime, 20.0);
 
           if (t < 10.0) {
-              // --- PHRASE 1: FOLLOW ---
-              // Enter: 0.0s - 0.8s | Stationary Flip: 0.8s - 8.5s | Exit: 8.5s - 9.5s
+              // --- PHRASE 1: FOLLOW (0s - 10s) ---
               float inPos  = smoothstep(0.0, 0.8, t);
               float outPos = smoothstep(8.5, 9.5, t);
               float xPos   = mix(-7.0, 0.0, inPos) + mix(0.0, 7.0, outPos);
-
+              
               float flipTime = clamp((t - 1.0) / 6.5, 0.0, 1.0);
               vec3 textP = p - vec3(xPos, 0.0, 0.0);
-              float d = renderFollow(textP, flipTime);
-              if (d < res.x) res = vec2(d, 1.0);
+              d = renderFollow(textP, flipTime);
+              mat = 1.0;
           } else {
-              // --- PHRASE 2: CHECK OUT DA LINKTREE ---
-              float t2     = t - 10.0;
-              // Enter: 0.0s - 0.8s | Stationary Flip: 0.8s - 8.5s | Exit: 8.5s - 9.5s
+              // --- PHRASE 2: CHECK OUT DA LINKTREE (10s - 20s) ---
+              float t2 = t - 10.0; // Reset time so t2 runs from 0s to 10s
+              
               float inPos  = smoothstep(0.0, 0.8, t2);
               float outPos = smoothstep(8.5, 9.5, t2);
               float xPos   = mix(-7.0, 0.0, inPos) + mix(0.0, 7.0, outPos);
-
+              
               float flipTime = clamp((t2 - 1.0) / 6.5, 0.0, 1.0);
               vec3 textP = p - vec3(xPos, 0.0, 0.0);
-              float d = renderPhrase2(textP, flipTime);
-              if (d < res.x) res = vec2(d, 2.0);
+              d = renderPhrase2(textP, flipTime);
+              mat = 2.0;
           }
-          return res;
+          
+          return vec2(d, mat);
       }
 
       vec3 getNormal(vec3 p) {
@@ -2203,9 +2227,7 @@
               float dif = max(dot(n, lightDir), 0.0);
               dif = smoothstep(0.01, 0.05, dif) * 0.3 + smoothstep(0.3, 0.35, dif) * 0.7;
 
-              // Solid Red Color
-              vec3 albedo = vec3(0.9, 0.08, 0.08);
-
+              vec3 albedo = vec3(0.9, 0.08, 0.08); // Red
               vec3 rgb = albedo * (dif * 0.8 + 0.2);
 
               float fresnel = 1.0 - max(dot(n, -rd), 0.0);
@@ -2216,7 +2238,7 @@
           }
 
           finalRgba.rgb = pow(finalRgba.rgb, vec3(0.4545)); // Gamma correction
-          gl_FragColor  = vec4(finalRgba.rgb, finalRgba.a * uOpacity);
+          gl_FragColor = vec4(finalRgba.rgb, finalRgba.a * uOpacity);
       }
     `;
 
