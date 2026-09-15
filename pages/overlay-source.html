@@ -2059,16 +2059,16 @@
               vec3 pDiag = p; pDiag.xy *= rot(-0.42);
               return min(min(leftStem, rightStem), sdBox(pDiag, vec3(s, 0.30, s)));
           }
-          if (ch == 75) { // K (Straight vertical line down, diagonal top-right to middle, diagonal bottom-right to middle)
-              // Diagonal 1: Top-right (0.12, 0.28) to Middle (-0.08, 0.00)
+          if (ch == 75) { // K (Strictly adheres to y in [-0.28, 0.28])
+              // Diagonal 1: Top-right (0.12, 0.24) to Middle (-0.08, 0.00) -> top is exactly 0.24 + s = 0.28
               vec2 p1 = p.xy - vec2(-0.08, 0.00);
-              vec2 b1 = vec2(0.12, 0.28) - vec2(-0.08, 0.00);
+              vec2 b1 = vec2(0.12, 0.24) - vec2(-0.08, 0.00);
               float h1 = clamp(dot(p1, b1) / dot(b1, b1), 0.0, 1.0);
               float dDiagTop = max(length(p1 - b1 * h1) - s, abs(p.z) - s);
 
-              // Diagonal 2: Bottom-right (0.12, -0.28) to Middle (-0.08, 0.00)
+              // Diagonal 2: Bottom-right (0.12, -0.24) to Middle (-0.08, 0.00) -> bottom is exactly -0.24 - s = -0.28
               vec2 p2 = p.xy - vec2(-0.08, 0.00);
-              vec2 b2 = vec2(0.12, -0.28) - vec2(-0.08, 0.00);
+              vec2 b2 = vec2(0.12, -0.24) - vec2(-0.08, 0.00);
               float h2 = clamp(dot(p2, b2) / dot(b2, b2), 0.0, 1.0);
               float dDiagBot = max(length(p2 - b2 * h2) - s, abs(p.z) - s);
 
@@ -2079,18 +2079,18 @@
               vec3 pR = p - vec3( 0.06, -0.08, 0.0); pR.xy *= rot(-0.28);
               return min(min(leftStem, rightStem), min(sdBox(pL, vec3(s, 0.20, s)), sdBox(pR, vec3(s, 0.20, s))));
           }
-          if (ch == 82) { // R (Straight vertical line down, top half half-oval, bottom diagonal from bottom-right into near middle)
-              // Top half half-oval loop
-              float rTop = sdBox(p - vec3(-0.02, 0.25, 0.0), vec3(0.07, s, s));
+          if (ch == 82) { // R (Strictly adheres to y in [-0.28, 0.28])
+              // Top half half-oval loop: top aligns at 0.24 + s = 0.28
+              float rTop = sdBox(p - vec3(-0.02, 0.24, 0.0), vec3(0.07, s, s));
               float rMid = sdBox(p - vec3(-0.02, 0.02, 0.0), vec3(0.07, s, s));
-              vec2 q = p.xy - vec2(0.04, 0.135);
-              float dArc = max(abs(length(q) - 0.115) - s, -q.x);
+              vec2 q = p.xy - vec2(0.04, 0.13);
+              float dArc = max(abs(length(q) - 0.11) - s, -q.x);
               float rArc = max(dArc, abs(p.z) - s);
               float topLoop = min(min(rTop, rMid), rArc);
 
-              // Bottom diagonal leg from bottom-right (0.12, -0.28) into near middle (-0.02, 0.02)
+              // Bottom diagonal leg to (0.12, -0.24) -> bottom aligns at -0.24 - s = -0.28
               vec2 pLeg = p.xy - vec2(-0.02, 0.02);
-              vec2 bLeg = vec2(0.12, -0.28) - vec2(-0.02, 0.02);
+              vec2 bLeg = vec2(0.12, -0.24) - vec2(-0.02, 0.02);
               float hLeg = clamp(dot(pLeg, bLeg) / dot(bLeg, bLeg), 0.0, 1.0);
               float dLeg = max(length(pLeg - bLeg * hLeg) - s, abs(p.z) - s);
 
@@ -2126,29 +2126,31 @@
           return 32;
       }
 
-      // Explicit X positioning with distinct word spacing for "CHECK OUT DA LINKTREE"
+      // Explicit X positioning with generous spacing around C and R for "CHECK OUT DA LINKTREE"
       float getPhrase2X(int index) {
-          if (index == 0) return -2.97; // C
-          if (index == 1) return -2.67; // H
-          if (index == 2) return -2.37; // E
-          if (index == 3) return -2.07; // C
-          if (index == 4) return -1.77; // K
+          // CHECK (with extra spacing around C)
+          if (index == 0) return -3.21; // C
+          if (index == 1) return -2.85; // H
+          if (index == 2) return -2.53; // E
+          if (index == 3) return -2.17; // C (padded)
+          if (index == 4) return -1.81; // K
           // Word gap to OUT (0.58 wide)
-          if (index == 6) return -1.19; // O
-          if (index == 7) return -0.89; // U
+          if (index == 6) return -1.23; // O
+          if (index == 7) return -0.91; // U
           if (index == 8) return -0.59; // T
           // Word gap to DA (0.58 wide)
           if (index == 10) return -0.01; // D
-          if (index == 11) return  0.29; // A
+          if (index == 11) return  0.31; // A
           // Word gap to LINKTREE (0.58 wide)
-          if (index == 13) return  0.87; // L
+          if (index == 13) return  0.89; // L
           if (index == 14) return  1.17; // I
-          if (index == 15) return  1.47; // N
-          if (index == 16) return  1.77; // K
-          if (index == 17) return  2.07; // T
-          if (index == 18) return  2.37; // R
-          if (index == 19) return  2.67; // E
-          if (index == 20) return  2.97; // E
+          if (index == 15) return  1.49; // N
+          if (index == 16) return  1.81; // K
+          if (index == 17) return  2.13; // T
+          // Extra space around R
+          if (index == 18) return  2.51; // R (padded on both sides)
+          if (index == 19) return  2.89; // E
+          if (index == 20) return  3.21; // E
           return 0.0;
       }
 
@@ -2180,7 +2182,7 @@
       // Phrase 2: CHECK OUT DA LINKTREE (21 slots with distinct word spacing & complete 360° flips)
       float renderPhrase2(vec3 p, float t2) {
           float d = MAX_DIST;
-          vec3 sp = p * 1.20;
+          vec3 sp = p * 1.25;
           
           for (int i = 0; i < 21; i++) {
               int ch = getPhrase2Char(i);
@@ -2197,7 +2199,7 @@
               lp.xz *= rot(letterFlip);
               d = min(d, sdChar(ch, lp));
           }
-          return d / 1.20; // Exact Euclidean distance: prevents raymarching overshoot
+          return d / 1.25; // Exact Euclidean distance: prevents raymarching overshoot
       }
 
       vec2 map(vec3 p) {
