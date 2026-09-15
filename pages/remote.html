@@ -198,6 +198,15 @@
       border: 1px solid rgba(245, 158, 11, 0.4);
       color: #fbbf24;
     }
+
+    @keyframes queuePulseGreen {
+      0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); background: #22c55e; }
+      70% { box-shadow: 0 0 0 8px rgba(34, 197, 94, 0); background: #22c55e; }
+      100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); background: #22c55e; }
+    }
+    .pulse-active {
+      animation: queuePulseGreen 1.5s infinite !important;
+    }
   </style>
 </head>
 <body>
@@ -378,6 +387,53 @@
       </div>
     </div>
 
+    <!-- Real-time Shader Queue & Playback Status Monitor -->
+    <div class="glass-card" style="margin-bottom: 1.5rem; border: 1px solid rgba(147, 51, 234, 0.4); background: linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(30, 27, 75, 0.85));">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem; flex-wrap: wrap; gap: 0.5rem;">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <span style="font-size: 1.2rem;">⏱️</span>
+          <div>
+            <div style="font-size: 0.95rem; font-weight: 800; color: #fff;">Shader Playback & Queue Monitor</div>
+            <div style="font-size: 0.72rem; color: var(--text-muted);">Active shaders play full cycle before advancing to queued shader</div>
+          </div>
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+          <button id="btnSkipShader" class="btn btn-glass" style="padding: 0.35rem 0.7rem; font-size: 0.75rem; color: #38bdf8; border-color: rgba(56, 189, 248, 0.4);" title="Stop current shader and play next in queue">
+            ⏭️ Skip Next
+          </button>
+          <button id="btnClearShaderQueue" class="btn btn-glass" style="padding: 0.35rem 0.7rem; font-size: 0.75rem; color: #f87171; border-color: rgba(239, 68, 68, 0.4);" title="Clear entire queue and stop">
+            🗑️ Clear Queue
+          </button>
+        </div>
+      </div>
+
+      <!-- Currently Playing Indicator -->
+      <div style="padding: 0.8rem 1rem; border-radius: 10px; background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(255, 255, 255, 0.08); margin-bottom: 0.8rem; display: flex; align-items: center; justify-content: space-between; gap: 0.8rem;">
+        <div style="display: flex; align-items: center; gap: 0.7rem;">
+          <span id="playingPulseDot" style="width: 12px; height: 12px; border-radius: 50%; background: #64748b; display: inline-block; transition: all 0.3s ease;"></span>
+          <div>
+            <div style="font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); font-weight: 700;">Currently Playing</div>
+            <div id="currentShaderName" style="font-size: 1rem; font-weight: 800; color: #94a3b8;">None (Idle)</div>
+          </div>
+        </div>
+        <div style="text-align: right;">
+          <div id="shaderTimerDisplay" style="font-family: var(--font-mono); font-size: 0.95rem; font-weight: 800; color: #38bdf8;">--</div>
+          <div id="shaderStatusNote" style="font-size: 0.68rem; color: var(--text-muted);">Ready to trigger</div>
+        </div>
+      </div>
+
+      <!-- Queue Display -->
+      <div>
+        <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 0.4rem; display: flex; justify-content: space-between;">
+          <span>Up Next in Queue</span>
+          <span id="queueCountBadge" style="color: var(--accent-cyan); font-weight: 700;">0 items</span>
+        </div>
+        <div id="queueListContainer" style="display: flex; flex-direction: column; gap: 0.4rem;">
+          <div style="font-size: 0.8rem; color: var(--text-muted); font-style: italic; padding: 0.3rem 0;">Queue empty · Click any shader below to play or queue</div>
+        </div>
+      </div>
+    </div>
+
     <!-- 5. 2.5D Comic Car Corner Shader Overlay Control -->
     <h3 class="section-title">🏎️ 2.5D Comic Car Drifting Shader Overlay</h3>
     <div class="glass-card" style="margin-bottom: 1.5rem;">
@@ -427,7 +483,7 @@
           <input type="range" id="textScaleSlider" min="0.25" max="2.0" step="0.05" value="1.0" style="flex: 1; accent-color: var(--accent-cyan); cursor: pointer;">
         </div>
 
-        <p style="color: var(--text-muted); font-size: 0.8rem; margin: 0;">Cycles: <strong style="color: #fbbf24;">FOLLOW</strong> (gold, 6s) → <strong style="color: #06b6d4;">CHECK OUT DA LINKTREE</strong> (cyan, 6s) · 3D raymarched letters with staggered Y-flip animation</p>
+        <p style="color: var(--text-muted); font-size: 0.8rem; margin: 0;">Cycles (20s total): <strong style="color: #ef4444;">FOLLOW</strong> (10s) → <strong style="color: #ef4444;">CHECK OUT DA LINKTREE</strong> (10s) · 3D raymarched red letters with horizontal flip animation</p>
 
         <div style="display: flex; gap: 0.8rem; flex-wrap: wrap;">
           <button class="btn btn-primary" id="btnPlayTextSequence" style="flex: 1; min-width: 180px; background: linear-gradient(135deg, #6366f1, #06b6d4);">
@@ -804,6 +860,97 @@
           window.remoteEngine.send('stop_text_sequence');
         });
       }
+
+      // Shader Queue & Status Sync
+      const playingPulseDot = document.getElementById('playingPulseDot');
+      const currentShaderName = document.getElementById('currentShaderName');
+      const shaderTimerDisplay = document.getElementById('shaderTimerDisplay');
+      const shaderStatusNote = document.getElementById('shaderStatusNote');
+      const queueCountBadge = document.getElementById('queueCountBadge');
+      const queueListContainer = document.getElementById('queueListContainer');
+      const btnClearShaderQueue = document.getElementById('btnClearShaderQueue');
+      const btnSkipShader = document.getElementById('btnSkipShader');
+
+      function updateQueueUI(data) {
+        if (!data) return;
+
+        if (data.currentlyPlaying) {
+          if (playingPulseDot) {
+            playingPulseDot.style.background = '#22c55e';
+            playingPulseDot.className = 'pulse-active';
+          }
+          if (currentShaderName) {
+            currentShaderName.textContent = data.currentlyPlayingName || data.currentlyPlaying;
+            currentShaderName.style.color = '#38bdf8';
+          }
+          if (shaderTimerDisplay) {
+            shaderTimerDisplay.textContent = `${data.remainingSec}s left`;
+            shaderTimerDisplay.style.color = '#38bdf8';
+          }
+          if (shaderStatusNote) {
+            shaderStatusNote.textContent = 'Playing full cycle';
+          }
+        } else {
+          if (playingPulseDot) {
+            playingPulseDot.style.background = '#64748b';
+            playingPulseDot.className = '';
+          }
+          if (currentShaderName) {
+            currentShaderName.textContent = 'None (Idle)';
+            currentShaderName.style.color = '#94a3b8';
+          }
+          if (shaderTimerDisplay) {
+            shaderTimerDisplay.textContent = '--';
+            shaderTimerDisplay.style.color = '#64748b';
+          }
+          if (shaderStatusNote) {
+            shaderStatusNote.textContent = 'Ready to trigger';
+          }
+        }
+
+        const queue = data.queue || [];
+        if (queueCountBadge) {
+          queueCountBadge.textContent = `${queue.length} item${queue.length === 1 ? '' : 's'}`;
+        }
+
+        if (queueListContainer) {
+          if (queue.length === 0) {
+            queueListContainer.innerHTML = '<div style="font-size: 0.8rem; color: var(--text-muted); font-style: italic; padding: 0.3rem 0;">Queue empty · Click any shader below to play or queue</div>';
+          } else {
+            queueListContainer.innerHTML = queue.map((item, idx) => `
+              <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.45rem 0.75rem; background: rgba(255, 255, 255, 0.04); border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.08);">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                  <span style="font-size: 0.72rem; font-weight: 800; color: #a78bfa; background: rgba(167, 139, 250, 0.15); padding: 0.1rem 0.4rem; border-radius: 4px;">#${idx + 1}</span>
+                  <span style="font-size: 0.85rem; font-weight: 700; color: #e2e8f0;">${item.name}</span>
+                </div>
+                <span style="font-size: 0.7rem; color: #a78bfa; font-family: var(--font-mono); font-weight: 600;">Queued</span>
+              </div>
+            `).join('');
+          }
+        }
+      }
+
+      if (btnClearShaderQueue) {
+        btnClearShaderQueue.addEventListener('click', () => {
+          window.remoteEngine.send('clear_shader_queue');
+        });
+      }
+
+      if (btnSkipShader) {
+        btnSkipShader.addEventListener('click', () => {
+          window.remoteEngine.send('stop_current_shader');
+        });
+      }
+
+      window.remoteEngine.subscribe((event) => {
+        if (event.action === 'shader_queue_update') {
+          updateQueueUI(event.payload);
+        }
+      });
+
+      setTimeout(() => {
+        window.remoteEngine.send('get_queue_status');
+      }, 500);
 
       stopShaderBtn.addEventListener('click', () => {
         window.remoteEngine.send('stop_procedural_shader');

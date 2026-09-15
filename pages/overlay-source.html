@@ -507,15 +507,22 @@
           playComicCarShader(payload.position || 'pos-top-left', payload.opacity || 1.0, payload.scale || 1.0);
           break;
         case 'stop_comic_car':
-          pendingCarCall = null;
           stopComicCarShader();
           break;
         case 'play_text_sequence':
           playTextSequenceShader(payload.position || 'pos-top-left', payload.opacity || 1.0, payload.scale || 1.0);
           break;
         case 'stop_text_sequence':
-          pendingTextCall = null;
           stopTextSequenceShader();
+          break;
+        case 'stop_current_shader':
+          if (currentPlayingShader) stopSingleShader(currentPlayingShader);
+          break;
+        case 'clear_shader_queue':
+          stopAllShaderPlaybackAndQueue();
+          break;
+        case 'get_queue_status':
+          broadcastQueueStatus();
           break;
         case 'show_png_overlay':
           showPngOverlay(payload.src, payload.position, payload.duration);
@@ -566,6 +573,7 @@
           break;
         case 'clear_all':
           clearAllGraphics();
+          stopAllShaderPlaybackAndQueue();
           break;
       }
     });
@@ -1642,19 +1650,184 @@
       }
     `;
 
-    // Mutual Queueing / Mutex for Comic Car & Text Sequence
-    let pendingCarCall = null;
-    let pendingTextCall = null;
-    let textSequenceTimer = null;
+    // =========================================================================
+    // Shader Queue & Mutex Engine (Comic Car & 3D Text Sequence)
+    // Plays currently active shader all the way through before playing next queued shader
+    // =========================================================================
+    const TEXT_SEQUENCE_DURATION = 20000; // 20.0s (10s "FOLLOW" + 10s "CHECK OUT DA LINKTREE")
+    const COMIC_CAR_DURATION = 20000;     // 20.0s full drift cycle matching text sequence
 
-    function playComicCarShader(position = 'pos-top-left', opacity = 1.0, scale = 1.0) {
-      if (isTextActive) {
-        // Text sequence is currently running; wait until text sequence ends
-        pendingCarCall = { position, opacity, scale };
-        return;
+    let currentPlayingShader = null; // 'comic_car' | 'text_sequence' | null
+    let shaderQueue = [];            // Array of { type, name, position, opacity, scale }
+    let currentShaderTimer = null;
+    let currentShaderStartedAt = 0;
+    let currentShaderDuration = 0;
+    let queueBroadcastInterval = null;
+
+    function broadcastQueueStatus() {
+      let remainingSec = 0;
+      if (currentPlayingShader && currentShaderStartedAt > 0) {
+        const elapsed = Date.now() - currentShaderStartedAt;
+        remainingSec = Math.max(0, Math.ceil((currentShaderDuration - elapsed) / 1000));
       }
-      pendingCarCall = null;
 
+      const payload = {
+        currentlyPlaying: currentPlayingShader,
+        currentlyPlayingName: currentPlayingShader === 'comic_car' 
+          ? '🏎️ 2.5D Comic Car' 
+          : currentPlayingShader === 'text_sequence' 
+            ? '✨ 3D Text Sequence' 
+            : null,
+        remainingSec,
+        queue: shaderQueue.map((item, idx) => ({
+          index: idx + 1,
+          type: item.type,
+          name: item.name
+        }))
+      };
+
+      if (window.remoteEngine) {
+        window.remoteEngine.send('shader_queue_update', payload);
+      }
+    }
+
+    function requestPlayShader(type, payload = {}) {
+      const shaderName = type === 'comic_car' ? '🏎️ 2.5D Comic Car' : '✨ 3D Text Sequence';
+      const item = {
+        type,
+        name: shaderName,
+        position: payload.position || 'pos-top-left',
+        opacity: payload.opacity !== undefined ? payload.opacity : 1.0,
+        scale: payload.scale !== undefined ? payload.scale : 1.0
+      };
+
+      if (!currentPlayingShader) {
+        // Nothing is currently active: start immediately
+        startShader(item);
+      } else {
+        // Shader is currently playing! Queue it up so current shader plays all the way through
+        const isDuplicateTail = shaderQueue.length > 0 && shaderQueue[shaderQueue.length - 1].type === type;
+        if (!isDuplicateTail && shaderQueue.length < 10) {
+          shaderQueue.push(item);
+          broadcastQueueStatus();
+        }
+      }
+    }
+
+    function startShader(item) {
+      currentPlayingShader = item.type;
+      currentShaderStartedAt = Date.now();
+      currentShaderDuration = item.type === 'comic_car' ? COMIC_CAR_DURATION : TEXT_SEQUENCE_DURATION;
+
+      if (currentShaderTimer) {
+        clearTimeout(currentShaderTimer);
+        currentShaderTimer = null;
+      }
+
+      if (item.type === 'comic_car') {
+        rawPlayComicCarShader(item.position, item.opacity, item.scale);
+      } else if (item.type === 'text_sequence') {
+        rawPlayTextSequenceShader(item.position, item.opacity, item.scale);
+      }
+
+      broadcastQueueStatus();
+
+      if (!queueBroadcastInterval) {
+        queueBroadcastInterval = setInterval(broadcastQueueStatus, 1000);
+      }
+
+      currentShaderTimer = setTimeout(() => {
+        onShaderCycleComplete();
+      }, currentShaderDuration);
+    }
+
+    function onShaderCycleComplete() {
+      if (currentPlayingShader === 'comic_car') {
+        rawStopComicCarShader();
+      } else if (currentPlayingShader === 'text_sequence') {
+        rawStopTextSequenceShader();
+      }
+      currentPlayingShader = null;
+      if (currentShaderTimer) {
+        clearTimeout(currentShaderTimer);
+        currentShaderTimer = null;
+      }
+
+      // Check if there are queued items
+      if (shaderQueue.length > 0) {
+        const nextItem = shaderQueue.shift();
+        startShader(nextItem);
+      } else {
+        if (queueBroadcastInterval) {
+          clearInterval(queueBroadcastInterval);
+          queueBroadcastInterval = null;
+        }
+        broadcastQueueStatus();
+      }
+    }
+
+    function stopSingleShader(type) {
+      shaderQueue = shaderQueue.filter(item => item.type !== type);
+
+      if (currentPlayingShader === type) {
+        if (type === 'comic_car') rawStopComicCarShader();
+        if (type === 'text_sequence') rawStopTextSequenceShader();
+        currentPlayingShader = null;
+        if (currentShaderTimer) {
+          clearTimeout(currentShaderTimer);
+          currentShaderTimer = null;
+        }
+
+        if (shaderQueue.length > 0) {
+          const nextItem = shaderQueue.shift();
+          startShader(nextItem);
+        } else {
+          if (queueBroadcastInterval) {
+            clearInterval(queueBroadcastInterval);
+            queueBroadcastInterval = null;
+          }
+          broadcastQueueStatus();
+        }
+      } else {
+        broadcastQueueStatus();
+      }
+    }
+
+    function stopAllShaderPlaybackAndQueue() {
+      shaderQueue = [];
+      if (currentShaderTimer) {
+        clearTimeout(currentShaderTimer);
+        currentShaderTimer = null;
+      }
+      if (queueBroadcastInterval) {
+        clearInterval(queueBroadcastInterval);
+        queueBroadcastInterval = null;
+      }
+      rawStopComicCarShader();
+      rawStopTextSequenceShader();
+      currentPlayingShader = null;
+      broadcastQueueStatus();
+    }
+
+    // Public wrappers
+    function playComicCarShader(position = 'pos-top-left', opacity = 1.0, scale = 1.0) {
+      requestPlayShader('comic_car', { position, opacity, scale });
+    }
+
+    function stopComicCarShader() {
+      stopSingleShader('comic_car');
+    }
+
+    function playTextSequenceShader(position = 'pos-top-left', opacity = 1.0, scale = 1.0) {
+      requestPlayShader('text_sequence', { position, opacity, scale });
+    }
+
+    function stopTextSequenceShader() {
+      stopSingleShader('text_sequence');
+    }
+
+    // 2.5D Comic Car Low-Level Shader
+    function rawPlayComicCarShader(position = 'pos-top-left', opacity = 1.0, scale = 1.0) {
       const canvas = document.getElementById('shaderCarCanvas');
       if (!canvas) return;
 
@@ -1662,7 +1835,6 @@
       canvas.className = pos;
       canvas.style.display = 'block';
       canvas.style.transform = `scale(${scale})`;
-      // Scale from the anchor corner so the canvas doesn't drift off-screen
       const originMap = {
         'pos-top-left':     'top left',
         'pos-top-right':    'top right',
@@ -1737,7 +1909,7 @@
       carAnimFrameId = requestAnimationFrame(renderCarFrame);
     }
 
-    function stopComicCarShader() {
+    function rawStopComicCarShader() {
       isCarActive = false;
       if (carAnimFrameId) {
         cancelAnimationFrame(carAnimFrameId);
@@ -1745,13 +1917,6 @@
       }
       const canvas = document.getElementById('shaderCarCanvas');
       if (canvas) canvas.style.display = 'none';
-
-      // If text sequence is waiting for car to finish, start it now
-      if (pendingTextCall) {
-        const next = pendingTextCall;
-        pendingTextCall = null;
-        playTextSequenceShader(next.position, next.opacity, next.scale);
-      }
     }
 
     // 3D Raymarched Text Sequence Shader Overlay Engine
@@ -1801,13 +1966,12 @@
               float b2 = sdBox(p - vec3(0.05, -0.24, 0.0), vec3(0.15, stem, stem));
               return min(b1, b2);
           }
-          if (ch == 87) { // W
-              vec3 p1 = p - vec3(-0.12, 0.0, 0.0); p1.xy *= rot(0.12);
-              vec3 p2 = p - vec3(-0.04, 0.0, 0.0); p2.xy *= rot(-0.12);
-              vec3 p3 = p - vec3(0.04, 0.0, 0.0);  p3.xy *= rot(0.12);
-              vec3 p4 = p - vec3(0.12, 0.0, 0.0);  p4.xy *= rot(-0.12);
-              return min(min(sdBox(p1, vec3(stem, 0.3, stem)), sdBox(p2, vec3(stem, 0.3, stem))),
-                         min(sdBox(p3, vec3(stem, 0.3, stem)), sdBox(p4, vec3(stem, 0.3, stem))));
+          if (ch == 87) { // W (Explicitly constructed W geometry - upside-down M)
+              float b1 = sdBox(p - vec3(-0.14, 0.0, 0.0), vec3(stem, 0.3, stem));
+              float b2 = sdBox(p - vec3(0.14, 0.0, 0.0), vec3(stem, 0.3, stem));
+              vec3 p3 = p - vec3(-0.07, -0.1, 0.0); p3.xy *= rot(0.3);
+              vec3 p4 = p - vec3(0.07, -0.1, 0.0);  p4.xy *= rot(-0.3);
+              return min(min(min(b1, b2), sdBox(p3, vec3(stem, 0.2, stem))), sdBox(p4, vec3(stem, 0.2, stem)));
           }
           if (ch == 67) { // C
               float outer = sdBox(p, vec3(0.18, 0.3, stem));
@@ -1881,11 +2045,10 @@
 
           for (int i = 0; i < 6; i++) {
               vec3 lp = p - vec3(float(i) * spacing - offset, 0.0, 0.0);
-              float stagger = float(i) * 0.12;
-              // Normalized letter flip progress allowing time for full unroll
-              float letterFlip = clamp((flipProgress - stagger) * 2.5, 0.0, 1.0) * 6.283185;
+              float stagger = float(i) * 0.10;
+              float letterFlip = clamp((flipProgress - stagger) * 2.0, 0.0, 1.0) * 6.283185;
 
-              // Horizontal Flip (Y-axis rotation)
+              // Horizontal X-Flip (Y-axis rotation)
               lp.xz *= rot(letterFlip);
 
               d = min(d, sdChar(chars[i], lp));
@@ -1893,25 +2056,25 @@
           return d;
       }
 
-      // Phrase 2: CHECK OUT DA LINKTREE (21 chars)
+      // Phrase 2: CHECK OUT DA LINKTREE (18 char array parsed in groups)
       float renderPhrase2(vec3 p, float flipProgress) {
           float d = MAX_DIST;
-          float spacing = 0.32;
-          float offset  = 10.0 * spacing;
+          float spacing = 0.28;
+          float offset  = 10.5 * spacing;
           int chars[21];
           chars[0] = 67; chars[1] = 72; chars[2] = 69; chars[3] = 67; chars[4] = 75; chars[5] = 32;
           chars[6] = 79; chars[7] = 85; chars[8] = 84; chars[9] = 32;
           chars[10] = 68; chars[11] = 65; chars[12] = 32;
           chars[13] = 76; chars[14] = 73; chars[15] = 78; chars[16] = 75; chars[17] = 84; chars[18] = 82; chars[19] = 69; chars[20] = 69;
 
-          vec3 sp = p * 1.25;
+          vec3 sp = p * 1.35;
           for (int i = 0; i < 21; i++) {
               if (chars[i] == 32) continue;
               vec3 lp = sp - vec3(float(i) * spacing - offset, 0.0, 0.0);
-              float stagger = float(i) * 0.035; // Fine-tuned stagger so 21 chars finish completely
-              float letterFlip = clamp((flipProgress - stagger) * 2.2, 0.0, 1.0) * 6.283185;
+              float stagger = float(i) * 0.03;
+              float letterFlip = clamp((flipProgress - stagger) * 1.8, 0.0, 1.0) * 6.283185;
 
-              // Horizontal Flip (Y-axis rotation)
+              // Horizontal X-Flip (Y-axis rotation)
               lp.xz *= rot(letterFlip);
 
               d = min(d, sdChar(chars[i], lp));
@@ -1921,31 +2084,29 @@
 
       vec2 map(vec3 p) {
           vec2 res = vec2(MAX_DIST, 0.0);
-          float cycleTime = 14.0; // Extended total cycle time for full flips
+          float cycleTime = 20.0; // Total timing: 10s per phrase
           float t = mod(iTime, cycleTime);
 
-          if (t < 7.0) {
+          if (t < 10.0) {
               // --- PHRASE 1: FOLLOW ---
-              // Enter: 0.0s - 0.8s | Stationary Flip: 0.8s - 5.8s | Exit: 5.8s - 6.8s
+              // Enter: 0.0s - 0.8s | Stationary Flip: 0.8s - 8.5s | Exit: 8.5s - 9.5s
               float inPos  = smoothstep(0.0, 0.8, t);
-              float outPos = smoothstep(5.8, 6.8, t);
+              float outPos = smoothstep(8.5, 9.5, t);
               float xPos   = mix(-7.0, 0.0, inPos) + mix(0.0, 7.0, outPos);
 
-              // Flip progresses strictly while stationary in center
-              float flipTime = clamp((t - 0.8) / 4.2, 0.0, 1.0);
+              float flipTime = clamp((t - 1.0) / 6.5, 0.0, 1.0);
               vec3 textP = p - vec3(xPos, 0.0, 0.0);
               float d = renderFollow(textP, flipTime);
               if (d < res.x) res = vec2(d, 1.0);
           } else {
               // --- PHRASE 2: CHECK OUT DA LINKTREE ---
-              float t2     = t - 7.0;
-              // Enter: 0.0s - 0.8s | Stationary Flip: 0.8s - 5.8s | Exit: 5.8s - 6.8s
+              float t2     = t - 10.0;
+              // Enter: 0.0s - 0.8s | Stationary Flip: 0.8s - 8.5s | Exit: 8.5s - 9.5s
               float inPos  = smoothstep(0.0, 0.8, t2);
-              float outPos = smoothstep(5.8, 6.8, t2);
+              float outPos = smoothstep(8.5, 9.5, t2);
               float xPos   = mix(-7.0, 0.0, inPos) + mix(0.0, 7.0, outPos);
 
-              // Flip progresses strictly while stationary in center
-              float flipTime = clamp((t2 - 0.8) / 4.2, 0.0, 1.0);
+              float flipTime = clamp((t2 - 1.0) / 6.5, 0.0, 1.0);
               vec3 textP = p - vec3(xPos, 0.0, 0.0);
               float d = renderPhrase2(textP, flipTime);
               if (d < res.x) res = vec2(d, 2.0);
@@ -1988,7 +2149,6 @@
 
           vec2 rm  = rayMarch(rayOrigin, rd);
           float d  = rm.x;
-          float mat = rm.y;
 
           vec4 finalRgba = vec4(0.0);
 
@@ -2017,14 +2177,7 @@
       }
     `;
 
-    function playTextSequenceShader(position = 'pos-top-left', opacity = 1.0, scale = 1.0) {
-      if (isCarActive) {
-        // Car animation is running; queue text sequence until car finishes
-        pendingTextCall = { position, opacity, scale };
-        return;
-      }
-      pendingTextCall = null;
-
+    function rawPlayTextSequenceShader(position = 'pos-top-left', opacity = 1.0, scale = 1.0) {
       const canvas = document.getElementById('shaderTextCanvas');
       if (!canvas) return;
 
@@ -2032,7 +2185,6 @@
       canvas.className = pos;
       canvas.style.display = 'block';
       canvas.style.transform = `scale(${scale})`;
-      // Scale from the anchor corner so the canvas doesn't drift off-screen
       const originMap = {
         'pos-top-left':     'top left',
         'pos-top-right':    'top right',
@@ -2107,36 +2259,16 @@
       }
 
       textAnimFrameId = requestAnimationFrame(renderTextFrame);
-
-      if (textSequenceTimer) {
-        clearTimeout(textSequenceTimer);
-        textSequenceTimer = null;
-      }
-      // Text sequence runs for full 14s cycle (Phrase 1 + Phrase 2) then auto-ends
-      textSequenceTimer = setTimeout(() => {
-        stopTextSequenceShader();
-      }, 14000);
     }
 
-    function stopTextSequenceShader() {
+    function rawStopTextSequenceShader() {
       isTextActive = false;
-      if (textSequenceTimer) {
-        clearTimeout(textSequenceTimer);
-        textSequenceTimer = null;
-      }
       if (textAnimFrameId) {
         cancelAnimationFrame(textAnimFrameId);
         textAnimFrameId = null;
       }
       const canvas = document.getElementById('shaderTextCanvas');
       if (canvas) canvas.style.display = 'none';
-
-      // If car was waiting for text sequence to finish, start it now
-      if (pendingCarCall) {
-        const next = pendingCarCall;
-        pendingCarCall = null;
-        playComicCarShader(next.position, next.opacity, next.scale);
-      }
     }
 
     // PNG Graphic Overlay Engine
