@@ -1988,93 +1988,94 @@
           return mat2(c, -s, s, c);
       }
 
-      // --- ALPHABET SDF GENERATOR ---
+      // --- GRID-ANCHORED ALPHABET SDF GENERATOR ---
       float sdChar(int ch, vec3 p) {
-          float stem = 0.04;
+          float s = 0.04; // Stem half-thickness
 
           if (ch == 32) return MAX_DIST; // Space
-          if (ch == 70) { // F
-              float b1 = sdBox(p - vec3(-0.1, 0.0, 0.0), vec3(stem, 0.3, stem));
-              float b2 = sdBox(p - vec3(0.05, 0.24, 0.0), vec3(0.15, stem, stem));
-              float b3 = sdBox(p - vec3(0.0, 0.02, 0.0), vec3(0.1, stem, stem));
-              return min(b1, min(b2, b3));
+
+          // --- REUSABLE GEOMETRIC PRIMITIVES ---
+          // Vertical Stems
+          float leftStem   = sdBox(p - vec3(-0.12,  0.0,  0.0), vec3(s, 0.28, s));
+          float rightStem  = sdBox(p - vec3( 0.12,  0.0,  0.0), vec3(s, 0.28, s));
+          float centerStem = sdBox(p,                           vec3(s, 0.28, s));
+          
+          // Horizontal Bars
+          float topBar    = sdBox(p - vec3(0.0,  0.24, 0.0), vec3(0.12, s, s));
+          float midBar    = sdBox(p,                         vec3(0.12, s, s));
+          float botBar    = sdBox(p - vec3(0.0, -0.24, 0.0), vec3(0.12, s, s));
+
+          // --- GLYPH DEFINITIONS ---
+          if (ch == 70) { // F (Left stem, Top bar, Mid bar)
+              return min(leftStem, min(sdBox(p - vec3(0.02, 0.24, 0.0), vec3(0.10, s, s)), 
+                                       sdBox(p - vec3(-0.02, 0.02, 0.0), vec3(0.06, s, s))));
           }
-          if (ch == 79) { // O
-              float outer = sdBox(p, vec3(0.18, 0.3, stem));
-              float inner = sdBox(p, vec3(0.09, 0.2, stem * 2.0));
+          if (ch == 69) { // E (Left stem, Top, Mid, Bottom bars)
+              float eTop = sdBox(p - vec3(0.02,  0.24, 0.0), vec3(0.10, s, s));
+              float eMid = sdBox(p - vec3(-0.02, 0.02, 0.0), vec3(0.06, s, s));
+              float eBot = sdBox(p - vec3(0.02, -0.24, 0.0), vec3(0.10, s, s));
+              return min(leftStem, min(eTop, min(eMid, eBot)));
+          }
+          if (ch == 76) { // L (Left stem, Bottom bar)
+              float lBot = sdBox(p - vec3(0.02, -0.24, 0.0), vec3(0.10, s, s));
+              return min(leftStem, lBot);
+          }
+          if (ch == 72) { // H (Left stem, Right stem, Mid bar)
+              return min(min(leftStem, rightStem), midBar);
+          }
+          if (ch == 84) { // T (Center stem, Top bar)
+              return min(centerStem, topBar);
+          }
+          if (ch == 73) return centerStem; // I (Center stem)
+
+          if (ch == 79) { // O (Outer Box minus Inner Hollow)
+              float outer = sdBox(p, vec3(0.16, 0.28, s));
+              float inner = sdBox(p, vec3(0.08, 0.20, s * 2.0));
               return max(outer, -inner);
           }
-          if (ch == 76) { // L
-              float b1 = sdBox(p - vec3(-0.1, 0.0, 0.0), vec3(stem, 0.3, stem));
-              float b2 = sdBox(p - vec3(0.05, -0.24, 0.0), vec3(0.15, stem, stem));
-              return min(b1, b2);
-          }
-          if (ch == 87) { // W
-              float b1 = sdBox(p - vec3(-0.14, 0.0, 0.0), vec3(stem, 0.3, stem));
-              float b2 = sdBox(p - vec3(0.14, 0.0, 0.0), vec3(stem, 0.3, stem));
-              vec3 p3 = p - vec3(-0.07, -0.1, 0.0); p3.xy *= rot(0.3);
-              vec3 p4 = p - vec3(0.07, -0.1, 0.0);  p4.xy *= rot(-0.3);
-              return min(min(min(b1, b2), sdBox(p3, vec3(stem, 0.2, stem))), sdBox(p4, vec3(stem, 0.2, stem)));
-          }
-          if (ch == 67) { // C
-              float outer = sdBox(p, vec3(0.18, 0.3, stem));
-              float inner = sdBox(p, vec3(0.09, 0.2, stem * 2.0));
-              float cut   = sdBox(p - vec3(0.1, 0.0, 0.0), vec3(0.15, 0.15, stem * 2.0));
+          if (ch == 67) { // C (Outer Box minus Inner Hollow & Right Cutout)
+              float outer = sdBox(p, vec3(0.16, 0.28, s));
+              float inner = sdBox(p, vec3(0.08, 0.20, s * 2.0));
+              float cut   = sdBox(p - vec3(0.10, 0.0, 0.0), vec3(0.10, 0.16, s * 2.0));
               return max(outer, -max(inner, cut));
           }
-          if (ch == 72) { // H
-              float b1 = sdBox(p - vec3(-0.12, 0.0, 0.0), vec3(stem, 0.3, stem));
-              float b2 = sdBox(p - vec3(0.12, 0.0, 0.0), vec3(stem, 0.3, stem));
-              float b3 = sdBox(p, vec3(0.12, stem, stem));
-              return min(min(b1, b2), b3);
+          if (ch == 68) { // D (Left stem + Curved Outer Right)
+              float outer = sdBox(p - vec3(0.02, 0.0, 0.0), vec3(0.14, 0.28, s));
+              float inner = sdBox(p - vec3(0.00, 0.0, 0.0), vec3(0.06, 0.20, s * 2.0));
+              return min(leftStem, max(outer, -inner));
           }
-          if (ch == 69) { // E
-              float b1 = sdBox(p - vec3(-0.1, 0.0, 0.0), vec3(stem, 0.3, stem));
-              float b2 = sdBox(p - vec3(0.05, 0.24, 0.0), vec3(0.15, stem, stem));
-              float b3 = sdBox(p, vec3(0.1, stem, stem));
-              float b4 = sdBox(p - vec3(0.05, -0.24, 0.0), vec3(0.15, stem, stem));
-              return min(min(b1, b2), min(b3, b4));
+          if (ch == 85) { // U (Left/Right stems + Bottom Bar)
+              float uLeft = sdBox(p - vec3(-0.12, 0.04, 0.0), vec3(s, 0.24, s));
+              float uRight= sdBox(p - vec3( 0.12, 0.04, 0.0), vec3(s, 0.24, s));
+              return min(min(uLeft, uRight), botBar);
           }
-          if (ch == 75) { // K
-              float b1 = sdBox(p - vec3(-0.1, 0.0, 0.0), vec3(stem, 0.3, stem));
-              vec3 p2 = p - vec3(0.02, 0.08, 0.0); p2.xy *= rot(-0.7);
-              vec3 p3 = p - vec3(0.02,-0.08, 0.0); p3.xy *= rot(0.7);
-              return min(b1, min(sdBox(p2, vec3(stem, 0.2, stem)), sdBox(p3, vec3(stem, 0.2, stem))));
+          if (ch == 65) { // A (Angled Left/Right legs + Mid Crossbar)
+              vec3 pL = p - vec3(-0.06, 0.0, 0.0); pL.xy *= rot(0.22);
+              vec3 pR = p - vec3( 0.06, 0.0, 0.0); pR.xy *= rot(-0.22);
+              float mid = sdBox(p - vec3(0.0, -0.04, 0.0), vec3(0.08, s, s));
+              return min(min(sdBox(pL, vec3(s, 0.28, s)), sdBox(pR, vec3(s, 0.28, s))), mid);
           }
-          if (ch == 85) { // U
-              float outer = sdBox(p - vec3(0.0, 0.05, 0.0), vec3(0.18, 0.25, stem));
-              float inner = sdBox(p - vec3(0.0, 0.1, 0.0), vec3(0.09, 0.25, stem * 2.0));
-              return max(outer, -inner);
+          if (ch == 78) { // N (Left/Right stems + Diagonal bridge)
+              vec3 pDiag = p; pDiag.xy *= rot(-0.42);
+              return min(min(leftStem, rightStem), sdBox(pDiag, vec3(s, 0.30, s)));
           }
-          if (ch == 84) { // T
-              float b1 = sdBox(p - vec3(0.0, 0.24, 0.0), vec3(0.18, stem, stem));
-              float b2 = sdBox(p, vec3(stem, 0.3, stem));
-              return min(b1, b2);
+          if (ch == 75) { // K (Left stem + Upper/Lower diagonal arms)
+              vec3 pTop = p - vec3(0.02,  0.10, 0.0); pTop.xy *= rot(-0.68);
+              vec3 pBot = p - vec3(0.02, -0.10, 0.0); pBot.xy *= rot(0.68);
+              return min(leftStem, min(sdBox(pTop, vec3(s, 0.18, s)), sdBox(pBot, vec3(s, 0.18, s))));
           }
-          if (ch == 68) { // D
-              float outer = sdBox(p, vec3(0.18, 0.3, stem));
-              float inner = sdBox(p - vec3(-0.04, 0.0, 0.0), vec3(0.08, 0.2, stem * 2.0));
-              return max(outer, -inner);
+          if (ch == 87) { // W (Left/Right outer stems + V-angled inner stems)
+              vec3 pL = p - vec3(-0.06, -0.08, 0.0); pL.xy *= rot(0.28);
+              vec3 pR = p - vec3( 0.06, -0.08, 0.0); pR.xy *= rot(-0.28);
+              return min(min(leftStem, rightStem), min(sdBox(pL, vec3(s, 0.20, s)), sdBox(pR, vec3(s, 0.20, s))));
           }
-          if (ch == 65) { // A
-              vec3 pa = p - vec3(-0.08, 0.0, 0.0); pa.xy *= rot(0.2);
-              vec3 pb = p - vec3(0.08, 0.0, 0.0);  pb.xy *= rot(-0.2);
-              float mid = sdBox(p - vec3(0.0, -0.05, 0.0), vec3(0.1, stem, stem));
-              return min(min(sdBox(pa, vec3(stem, 0.3, stem)), sdBox(pb, vec3(stem, 0.3, stem))), mid);
+          if (ch == 82) { // R (Left stem + Top loop + Bottom-right diagonal leg)
+              float topLoop = sdBox(p - vec3(0.02, 0.12, 0.0), vec3(0.10, 0.12, s));
+              float inner   = sdBox(p - vec3(0.02, 0.12, 0.0), vec3(0.04, 0.05, s * 2.0));
+              vec3 pLeg     = p - vec3(0.05, -0.14, 0.0); pLeg.xy *= rot(0.55);
+              return min(min(leftStem, max(topLoop, -inner)), sdBox(pLeg, vec3(s, 0.16, s)));
           }
-          if (ch == 73) return sdBox(p, vec3(stem, 0.3, stem)); // I
-          if (ch == 78) { // N
-              float b1 = sdBox(p - vec3(-0.12, 0.0, 0.0), vec3(stem, 0.3, stem));
-              float b2 = sdBox(p - vec3(0.12, 0.0, 0.0), vec3(stem, 0.3, stem));
-              vec3 p3 = p; p3.xy *= rot(-0.4);
-              return min(min(b1, b2), sdBox(p3, vec3(stem, 0.3, stem)));
-          }
-          if (ch == 82) { // R
-              float b1  = sdBox(p - vec3(-0.1, 0.0, 0.0), vec3(stem, 0.3, stem));
-              float top = sdBox(p - vec3(0.0, 0.12, 0.0), vec3(0.12, 0.12, stem));
-              vec3 p2   = p - vec3(0.05,-0.15, 0.0); p2.xy *= rot(0.5);
-              return min(min(b1, top), sdBox(p2, vec3(stem, 0.18, stem)));
-          }
+
           return MAX_DIST;
       }
 
