@@ -466,6 +466,7 @@
     let shaderFlamesProgram = null;
     let shaderPartyProgram = null;
     let shaderBdayProgram = null;
+    let shaderDiscProgram = null;
     let currentShaderOpacity = 0.75;
 
     menuBtn.addEventListener('click', () => {
@@ -1415,6 +1416,7 @@
     let carGl = null;
     let carProgram = null;
     let isCarActive = false;
+    let carAnimFrameId = null;
 
     const fsComicCarSource = `
       precision mediump float;
@@ -1697,8 +1699,7 @@
       const posLoc = carGl.getAttribLocation(carProgram, "a_position");
 
       function renderCarFrame(now) {
-        if (!isCarActive || canvas.style.display === 'none') return;
-        requestAnimationFrame(renderCarFrame);
+        if (!isCarActive) return;
 
         canvas.width = 280;
         canvas.height = 280;
@@ -1715,13 +1716,19 @@
         carGl.clearColor(0.0, 0.0, 0.0, 0.0);
         carGl.clear(carGl.COLOR_BUFFER_BIT);
         carGl.drawArrays(carGl.TRIANGLE_STRIP, 0, 4);
+
+        carAnimFrameId = requestAnimationFrame(renderCarFrame);
       }
 
-      requestAnimationFrame(renderCarFrame);
+      carAnimFrameId = requestAnimationFrame(renderCarFrame);
     }
 
     function stopComicCarShader() {
       isCarActive = false;
+      if (carAnimFrameId) {
+        cancelAnimationFrame(carAnimFrameId);
+        carAnimFrameId = null;
+      }
       const canvas = document.getElementById('shaderCarCanvas');
       if (canvas) canvas.style.display = 'none';
     }
@@ -1738,7 +1745,7 @@
       uniform float iTime;
       uniform float uOpacity;
 
-      #define MAX_STEPS 100
+      #define MAX_STEPS 80
       #define MAX_DIST 40.0
       #define SURF_DIST 0.002
 
@@ -1752,7 +1759,7 @@
           return mat2(c, -s, s, c);
       }
 
-      // --- ALPHABET SDF GENERATOR (GLSL-compatible: int char codes) ---
+      // --- ALPHABET SDF GENERATOR ---
       // Char codes: F=70 O=79 L=76 W=87 C=67 H=72 E=69 K=75
       //             U=85 T=84 D=68 A=65 I=73 N=78 R=82 space=32
       float sdChar(int ch, vec3 p) {
@@ -1846,11 +1853,12 @@
       }
 
       // Phrase 1: FOLLOW (6 chars, spacing 0.55)
+      // Fixed char arrays unrolled for GLSL ES 1.0 compatibility
       float renderFollow(vec3 p, float flipProgress) {
           float d = MAX_DIST;
           float spacing = 0.55;
           float offset  = 2.5 * spacing;
-          int[6] chars;
+          int chars[6];
           chars[0]=70; chars[1]=79; chars[2]=76; chars[3]=76; chars[4]=79; chars[5]=87;
           for (int i = 0; i < 6; i++) {
               vec3 lp = p - vec3(float(i) * spacing - offset, 0.0, 0.0);
@@ -1862,12 +1870,12 @@
           return d;
       }
 
-      // Phrase 2: CHECK OUT DA LINKTREE (18 slots, spacing 0.35, scaled 1.25x)
+      // Phrase 2: CHECK OUT DA LINKT (18 slots, spacing 0.35, scaled 1.25x)
       float renderPhrase2(vec3 p, float flipProgress) {
           float d = MAX_DIST;
           float spacing = 0.35;
           float offset  = 8.5 * spacing;
-          int[18] chars;
+          int chars[18];
           chars[0]=67;  chars[1]=72;  chars[2]=69;  chars[3]=67;  chars[4]=75;
           chars[5]=32;  chars[6]=79;  chars[7]=85;  chars[8]=84;
           chars[9]=32;  chars[10]=68; chars[11]=65;
@@ -1961,7 +1969,7 @@
               if (mat == 1.0) {
                   albedo = vec3(1.0, 0.8, 0.0);   // FOLLOW — Gold/Yellow
               } else if (mat == 2.0) {
-                  albedo = vec3(0.1, 0.85, 1.0);  // CHECK OUT DA LINKTREE — Cyan
+                  albedo = vec3(0.1, 0.85, 1.0);  // CHECK OUT DA LINKT — Cyan
               }
 
               vec3 rgb = albedo * (dif * 0.8 + 0.2);
@@ -1973,7 +1981,7 @@
               finalRgba = vec4(rgb, 1.0);
           }
 
-          finalRgba.rgb = pow(finalRgba.rgb, vec3(0.4545)); // gamma
+          finalRgba.rgb = pow(finalRgba.rgb, vec3(0.4545)); // Gamma correction
           gl_FragColor  = vec4(finalRgba.rgb, finalRgba.a * uOpacity);
       }
     `;
@@ -2164,6 +2172,12 @@
             { transform: 'translate3d(-50%, -50%, 0) scale(0.5)', opacity: 0 },
             { transform: 'translate3d(-50%, -50%, 0) scale(1)', opacity: 1 }
           ], { duration: 500, easing: 'cubic-bezier(0.175, 0.885, 0.32, 1.275)', fill: 'forwards' });
+        } else if (animStyle === 'intro-glitch-glow') {
+          banner.animate([
+            { transform: 'translate3d(-50%, -50%, 0) scale(0.9)', opacity: 0, textShadow: '-5px 0 #ef4444, 5px 0 #06b6d4' },
+            { transform: 'translate3d(-50%, -50%, 0) scale(1.05)', opacity: 1, textShadow: '5px 0 #ef4444, -5px 0 #06b6d4', offset: 0.5 },
+            { transform: 'translate3d(-50%, -50%, 0) scale(1)', opacity: 1, textShadow: '0 0 20px #06b6d4' }
+          ], { duration: 800, easing: 'ease-out', fill: 'forwards' });
         }
       }
 
