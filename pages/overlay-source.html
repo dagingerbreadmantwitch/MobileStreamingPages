@@ -1655,7 +1655,7 @@
     // Comic Car runs continuously (no timer); 3D Text Sequence runs 20s cycle
     // Only use queue if a different shader type is being prepared (only end running shader if another shader type is chosen)
     // =========================================================================
-    const TEXT_SEQUENCE_DURATION = 20000; // 20.0s (10s "FOLLOW" + 10s "CHECK OUT DA LINKTREE")
+    const TEXT_SEQUENCE_DURATION = 25000; // 25.0s (10s "FOLLOW" + 15s "CHECK OUT DA LINKTREE")
 
     let currentPlayingShader = null; // 'comic_car' | 'text_sequence' | null
     let shaderQueue = [];            // Array of { type, name, position, opacity, scale }
@@ -2104,8 +2104,34 @@
           return 32;
       }
 
+      // Explicit X positioning with distinct word spacing for "CHECK OUT DA LINKTREE"
+      float getPhrase2X(int index) {
+          if (index == 0) return -2.97; // C
+          if (index == 1) return -2.67; // H
+          if (index == 2) return -2.37; // E
+          if (index == 3) return -2.07; // C
+          if (index == 4) return -1.77; // K
+          // Word gap to OUT (0.58 wide)
+          if (index == 6) return -1.19; // O
+          if (index == 7) return -0.89; // U
+          if (index == 8) return -0.59; // T
+          // Word gap to DA (0.58 wide)
+          if (index == 10) return -0.01; // D
+          if (index == 11) return  0.29; // A
+          // Word gap to LINKTREE (0.58 wide)
+          if (index == 13) return  0.87; // L
+          if (index == 14) return  1.17; // I
+          if (index == 15) return  1.47; // N
+          if (index == 16) return  1.77; // K
+          if (index == 17) return  2.07; // T
+          if (index == 18) return  2.37; // R
+          if (index == 19) return  2.67; // E
+          if (index == 20) return  2.97; // E
+          return 0.0;
+      }
+
       // Phrase 1: FOLLOW (6 chars)
-      float renderFollow(vec3 p, float flipProgress) {
+      float renderFollow(vec3 p, float t) {
           float d = MAX_DIST;
           float spacing = 0.55;
           float offset  = 2.5 * spacing;
@@ -2117,8 +2143,11 @@
               if (i == 5) ch = 87; // W
               
               vec3 lp = p - vec3(float(i) * spacing - offset, 0.0, 0.0);
-              float stagger = float(i) * 0.10;
-              float letterFlip = clamp((flipProgress - stagger) * 2.0, 0.0, 1.0) * 6.283185;
+              
+              // Full 360° flip: starts facing front, flips, and finishes resting facing front
+              float letterStart = 1.2 + float(i) * 0.40;
+              float letterProg  = clamp((t - letterStart) / 1.0, 0.0, 1.0);
+              float letterFlip  = smoothstep(0.0, 1.0, letterProg) * 6.2831853;
               
               lp.xz *= rot(letterFlip);
               d = min(d, sdChar(ch, lp));
@@ -2126,55 +2155,56 @@
           return d;
       }
 
-      // Phrase 2: CHECK OUT DA LINKTREE (21 slots via direct function lookup)
-      float renderPhrase2(vec3 p, float flipProgress) {
+      // Phrase 2: CHECK OUT DA LINKTREE (21 slots with distinct word spacing & complete 360° flips)
+      float renderPhrase2(vec3 p, float t2) {
           float d = MAX_DIST;
-          float spacing = 0.28;
-          float offset  = 10.0 * spacing;
+          vec3 sp = p * 1.20;
           
-          vec3 sp = p * 1.35;
           for (int i = 0; i < 21; i++) {
               int ch = getPhrase2Char(i);
               if (ch == 32) continue;
               
-              vec3 lp = sp - vec3(float(i) * spacing - offset, 0.0, 0.0);
-              float stagger = float(i) * 0.03; 
-              float letterFlip = clamp((flipProgress - stagger) * 1.8, 0.0, 1.0) * 6.283185;
+              float xOffset = getPhrase2X(i);
+              vec3 lp = sp - vec3(xOffset, 0.0, 0.0);
+              
+              // Full 360° flip per letter: starts front-facing, flips smoothly, finishes resting front-facing
+              float letterStart = 1.3 + float(i) * 0.32;
+              float letterProg  = clamp((t2 - letterStart) / 0.9, 0.0, 1.0);
+              float letterFlip  = smoothstep(0.0, 1.0, letterProg) * 6.2831853;
               
               lp.xz *= rot(letterFlip);
               d = min(d, sdChar(ch, lp));
           }
-          return d / 1.35;
+          return d / 1.20; // Exact Euclidean distance: prevents raymarching overshoot
       }
 
       vec2 map(vec3 p) {
           float d = MAX_DIST;
           float mat = 0.0;
           
-          // Strict 20s loop reset
-          float t = mod(iTime, 20.0);
+          // Strict 25.0s loop: 10.0s for Phrase 1 ("FOLLOW") + 15.0s for Phrase 2 ("CHECK OUT DA LINKTREE")
+          float t = mod(iTime, 25.0);
 
           if (t < 10.0) {
               // --- PHRASE 1: FOLLOW (0s - 10s) ---
-              float inPos  = smoothstep(0.0, 0.8, t);
-              float outPos = smoothstep(8.5, 9.5, t);
+              float inPos  = smoothstep(0.0, 1.0, t);
+              float outPos = smoothstep(8.5, 9.8, t);
               float xPos   = mix(-7.0, 0.0, inPos) + mix(0.0, 7.0, outPos);
               
-              float flipTime = clamp((t - 1.0) / 6.5, 0.0, 1.0);
               vec3 textP = p - vec3(xPos, 0.0, 0.0);
-              d = renderFollow(textP, flipTime);
+              d = renderFollow(textP, t);
               mat = 1.0;
           } else {
-              // --- PHRASE 2: CHECK OUT DA LINKTREE (10s - 20s) ---
-              float t2 = t - 10.0; // Reset time so t2 runs from 0s to 10s
+              // --- PHRASE 2: CHECK OUT DA LINKTREE (10s - 25s, full 15s) ---
+              float t2 = t - 10.0; // t2 runs smoothly from 0.0s to 15.0s
               
-              float inPos  = smoothstep(0.0, 0.8, t2);
-              float outPos = smoothstep(8.5, 9.5, t2);
+              // Slide In: 0.0s - 1.2s | Complete Flips & Hold: 1.2s - 13.5s | Slide Out: 13.5s - 14.8s
+              float inPos  = smoothstep(0.0, 1.2, t2);
+              float outPos = smoothstep(13.5, 14.8, t2);
               float xPos   = mix(-7.0, 0.0, inPos) + mix(0.0, 7.0, outPos);
               
-              float flipTime = clamp((t2 - 1.0) / 6.5, 0.0, 1.0);
               vec3 textP = p - vec3(xPos, 0.0, 0.0);
-              d = renderPhrase2(textP, flipTime);
+              d = renderPhrase2(textP, t2);
               mat = 2.0;
           }
           
